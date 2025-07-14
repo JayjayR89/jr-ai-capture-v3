@@ -86,11 +86,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const saved = localStorage.getItem('aiCameraSettings');
       if (saved) {
         const savedSettings = JSON.parse(saved);
-        setSettings(savedSettings);
-        setTempSettings(savedSettings);
+        // Ensure theme value is properly typed
+        const validSettings: Settings = {
+          ...defaultSettings,
+          ...savedSettings,
+          theme: savedSettings.theme === 'light' ? 'light' : 'dark'
+        };
+        setSettings(validSettings);
+        setTempSettings(validSettings);
       } else {
         const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-        const initialSettings = { ...defaultSettings, theme: systemTheme };
+        const initialSettings: Settings = { ...defaultSettings, theme: systemTheme };
         setSettings(initialSettings);
         setTempSettings(initialSettings);
       }

@@ -6,6 +6,7 @@ import { toast } from '@/hooks/use-toast';
 import { SettingsModal } from './SettingsModal';
 import { CameraPreview } from './CameraPreview';
 import { AutoCaptureProgress } from './AutoCaptureProgress';
+import { ImageGallery } from './ImageGallery';
 import { useAutoCapture } from '@/hooks/useAutoCapture';
 
 // Using Puter.com API loaded from CDN
@@ -132,8 +133,8 @@ const CameraAIApp: React.FC = () => {
       setCapturedImages(prev => [newCapture, ...prev]);
       setAiDescription('');
       
-      // Add to AI processing queue if authenticated
-      if (isAuthenticated) {
+      // Only add to AI processing queue if auto-capture is enabled and authenticated
+      if (settings.autoCapture && isAuthenticated) {
         setAiQueue(prev => [...prev, newCapture]);
       }
       
@@ -236,23 +237,26 @@ const CameraAIApp: React.FC = () => {
     try {
       console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
       
-      // Use the same format as the working examples
-      const response = await puter.ai.chat(
-        "Describe what you see in this image in detail. Include any text you can read and objects you can identify.",
-        imageToProcess.dataUrl
-      );
+      // Enhanced prompt for better descriptions
+      const enhancedPrompt = `Analyze this image in detail. Please provide a comprehensive description that includes:
       
-      // Handle the response - it should be a string directly
-      let description = '';
-      if (typeof response === 'string') {
-        description = response;
-      } else if (response && response.toString) {
-        description = response.toString();
-      } else {
-        description = 'AI description received but could not be processed';
-      }
+      1. Overall scene description
+      2. Time of day (if determinable from lighting/context)
+      3. Objects, people, animals, or items visible
+      4. Colors, textures, and composition
+      5. Any readable text or signs
+      6. If people are visible, describe general appearance (clothing, activities, etc.)
+      7. Setting/environment details
+      8. Any notable features or points of interest
       
-      console.log('AI description received:', description.substring ? description.substring(0, 100) + '...' : description);
+      Format the response with clear paragraphs and proper structure for readability.`;
+      
+      const response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl);
+      
+      // Handle the response as a string
+      const description = typeof response === 'string' ? response : String(response);
+      
+      console.log('AI description received:', description.substring(0, 100) + '...');
       
       // Update the image with description
       setCapturedImages(prev => 
@@ -504,7 +508,7 @@ const CameraAIApp: React.FC = () => {
       return;
     }
 
-    // Add to queue for processing
+    // Add to queue for processing (for manual mode)
     if (!aiQueue.find(img => img.timestamp === lastCapture.timestamp)) {
       setAiQueue(prev => [lastCapture, ...prev]);
     }
@@ -603,7 +607,7 @@ const CameraAIApp: React.FC = () => {
             isCameraLoading={isCameraLoading}
             videoLoaded={videoLoaded}
             availableCameras={availableCameras}
-            showFlipButton={!isMinimized}
+            showFlipButton={true}
           />
         )}
 
@@ -661,7 +665,7 @@ const CameraAIApp: React.FC = () => {
           
           <Button 
             onClick={describeImage} 
-            disabled={!lastCapture || processingAI} 
+            disabled={!lastCapture || processingAI || settings.autoCapture} 
             variant="outline" 
             className="h-12"
             title={settings.tooltips ? "Get AI description of last captured image" : undefined}
@@ -680,8 +684,13 @@ const CameraAIApp: React.FC = () => {
           </Button>
         </div>
 
-        {/* Last Capture Thumbnail */}
-        {lastCapture && (
+        {/* Image Gallery */}
+        {capturedImages.length > 0 && (
+          <ImageGallery images={capturedImages} />
+        )}
+
+        {/* Last Capture Thumbnail (for single capture mode) */}
+        {lastCapture && !settings.autoCapture && (
           <Card className="p-4">
             <h3 className="text-sm font-medium text-muted-foreground mb-2">
               Last Capture
@@ -714,8 +723,8 @@ const CameraAIApp: React.FC = () => {
           </Card>
         )}
 
-        {/* AI Description */}
-        {aiDescription && (
+        {/* AI Description (for single capture mode) */}
+        {aiDescription && !settings.autoCapture && (
           <Card className="ai-response-box">
             <h3 className="text-sm font-medium text-muted-foreground mb-3">
               AI Description

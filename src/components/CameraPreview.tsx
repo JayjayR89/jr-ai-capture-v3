@@ -63,8 +63,8 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
         </Button>
         
-        {/* Top Right - Flip Camera Button */}
-        {showFlipButton && availableCameras.length > 1 && videoLoaded && (
+        {/* Top Right - Flip Camera Button - Always show when camera is ready and multiple cameras available */}
+        {showFlipButton && availableCameras.length > 1 && videoLoaded && !isMinimized && (
           <Button 
             variant="secondary" 
             size="icon" 
