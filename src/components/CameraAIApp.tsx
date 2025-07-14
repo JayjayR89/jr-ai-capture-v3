@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader, RotateCcw } from 'lucide-react';
+import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
@@ -77,17 +77,6 @@ const CameraAIApp: React.FC = () => {
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  // Check if device is mobile
-  const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
-  };
-
-  // Check if flip camera button should be shown
-  const shouldShowFlipButton = () => {
-    return availableCameras.length > 1 || isMobileDevice();
-  };
 
   // Define captureImage function before using it in useAutoCapture
   const captureImage = () => {
@@ -251,22 +240,21 @@ const CameraAIApp: React.FC = () => {
       // Enhanced prompt for better descriptions
       const enhancedPrompt = `Analyze this image in detail. Please provide a comprehensive description that includes:
       
-      1. Overall scene description and setting/environment
-      2. Time of day (if determinable from lighting/context) - specify if it's daytime, nighttime, dawn, dusk, or indoor lighting
-      3. Objects, people, animals, or items visible with specific details
+      1. Overall scene description
+      2. Time of day (if determinable from lighting/context)
+      3. Objects, people, animals, or items visible
       4. Colors, textures, and composition
-      5. Any readable text, signs, or written content (transcribe exactly what you see)
-      6. If people are visible, describe general appearance including clothing, activities, estimated age range, and gender if clearly determinable
-      7. Weather conditions if outdoor scene
-      8. Notable features, landmarks, or points of interest
-      9. Mood or atmosphere of the scene
+      5. Any readable text or signs
+      6. If people are visible, describe general appearance (clothing, activities, etc.)
+      7. Setting/environment details
+      8. Any notable features or points of interest
       
-      Format the response with clear paragraphs, proper line breaks, and organized structure for easy reading. Be detailed but concise.`;
+      Format the response with clear paragraphs and proper structure for readability.`;
       
       const response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl);
       
       // Handle the response as a string
-      const description = String(response);
+      const description = typeof response === 'string' ? response : String(response);
       
       console.log('AI description received:', description.substring(0, 100) + '...');
       
@@ -611,18 +599,16 @@ const CameraAIApp: React.FC = () => {
       <main className="flex-1 p-4 space-y-6">
         {/* Camera Preview */}
         {(isCameraOn || isCameraLoading) && (
-          <div className={`${isMinimized ? 'flex justify-center' : ''}`}>
-            <CameraPreview
-              videoRef={videoRef}
-              isMinimized={isMinimized}
-              onToggleMinimize={() => setIsMinimized(!isMinimized)}
-              onFlipCamera={flipCamera}
-              isCameraLoading={isCameraLoading}
-              videoLoaded={videoLoaded}
-              availableCameras={availableCameras}
-              showFlipButton={shouldShowFlipButton()}
-            />
-          </div>
+          <CameraPreview
+            videoRef={videoRef}
+            isMinimized={isMinimized}
+            onToggleMinimize={() => setIsMinimized(!isMinimized)}
+            onFlipCamera={flipCamera}
+            isCameraLoading={isCameraLoading}
+            videoLoaded={videoLoaded}
+            availableCameras={availableCameras}
+            showFlipButton={true}
+          />
         )}
 
         {/* Auto-Capture Progress */}
@@ -635,11 +621,11 @@ const CameraAIApp: React.FC = () => {
         )}
 
         {/* Camera Controls */}
-        <div className={`grid gap-4 ${shouldShowFlipButton() ? 'grid-cols-2' : 'grid-cols-1'}`}>
+        <div className="flex gap-4">
           <Button 
             onClick={isCameraOn ? stopCamera : requestCameraPermission} 
             variant={isCameraOn ? "destructive" : "default"} 
-            className="h-12"
+            className="flex-1 h-12"
             disabled={isCameraLoading}
             title={settings.tooltips ? (isCameraOn ? "Turn off camera" : "Turn on camera") : undefined}
           >
@@ -660,20 +646,6 @@ const CameraAIApp: React.FC = () => {
               </>
             )}
           </Button>
-
-          {/* Flip Camera Button */}
-          {shouldShowFlipButton() && (
-            <Button 
-              onClick={flipCamera} 
-              variant="outline" 
-              className="h-12"
-              disabled={!isCameraOn || isCameraLoading}
-              title={settings.tooltips ? "Switch between front and back camera" : undefined}
-            >
-              <RotateCcw className="h-5 w-5 mr-2" />
-              Flip Camera
-            </Button>
-          )}
         </div>
 
         {/* Capture Controls */}

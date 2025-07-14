@@ -25,22 +25,12 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   availableCameras,
   showFlipButton = true
 }) => {
-  // Check if device is mobile
-  const isMobileDevice = () => {
-    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-           (navigator.maxTouchPoints && navigator.maxTouchPoints > 2);
-  };
-
-  const shouldShowFlipButton = showFlipButton && (availableCameras.length > 1 || isMobileDevice());
-
   return (
     <Card className={`relative transition-all duration-300 ${
-      isMinimized 
-        ? 'w-full max-w-sm mx-auto' 
-        : 'w-full max-w-4xl mx-auto'
+      isMinimized ? 'w-auto h-[30vh]' : 'w-full'
     }`}>
       <div className={`bg-muted/20 rounded-lg overflow-hidden camera-preview relative ${
-        isMinimized ? 'aspect-video' : 'aspect-video'
+        isMinimized ? 'aspect-video h-full' : 'aspect-video'
       }`}>
         {isCameraLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
@@ -73,8 +63,8 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
         </Button>
         
-        {/* Top Right - Flip Camera Button */}
-        {shouldShowFlipButton && videoLoaded && !isMinimized && (
+        {/* Top Right - Flip Camera Button - Always show when camera is ready and multiple cameras available */}
+        {showFlipButton && availableCameras.length > 1 && videoLoaded && !isMinimized && (
           <Button 
             variant="secondary" 
             size="icon" 
