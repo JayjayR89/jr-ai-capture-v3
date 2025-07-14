@@ -77,6 +77,89 @@ const CameraAIApp: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // Define captureImage function before using it in useAutoCapture
+  const captureImage = () => {
+    if (!videoRef.current || !canvasRef.current || !isCameraOn) {
+      toast({
+        title: "Camera not ready",
+        description: "Please ensure camera is on",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('Video not ready - loaded:', videoLoaded, 'dimensions:', video.videoWidth, 'x', video.videoHeight);
+      toast({
+        title: "Video not ready",
+        description: "Please wait for camera to fully load",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
+    setIsCapturing(true);
+    setShowFlash(true);
+
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Could not get canvas context');
+      }
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      console.log('Capturing image with dimensions:', canvas.width, 'x', canvas.height);
+      
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const quality = settings.captureQuality === 'high' ? 0.9 : 
+                     settings.captureQuality === 'medium' ? 0.7 : 0.5;
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      
+      const newCapture: CapturedImage = {
+        dataUrl,
+        timestamp: new Date()
+      };
+      
+      setLastCapture(newCapture);
+      setCapturedImages(prev => [newCapture, ...prev]);
+      setAiDescription('');
+      
+      // Add to AI processing queue if authenticated
+      if (isAuthenticated) {
+        setAiQueue(prev => [...prev, newCapture]);
+      }
+      
+      console.log('Image captured successfully, size:', dataUrl.length, 'bytes');
+      
+      toast({
+        title: "Image Captured",
+        description: "Screenshot saved successfully",
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Capture error:', error);
+      toast({
+        title: "Capture failed",
+        description: "Unable to capture image from video",
+        variant: "destructive",
+        duration: 3000
+      });
+    } finally {
+      setTimeout(() => {
+        setShowFlash(false);
+        setIsCapturing(false);
+      }, 300);
+    }
+  };
+
   // Auto-capture hook
   const autoCapture = useAutoCapture(
     {
@@ -387,88 +470,6 @@ const CameraAIApp: React.FC = () => {
       setTimeout(() => {
         requestCameraPermission();
       }, 500);
-    }
-  };
-
-  const captureImage = () => {
-    if (!videoRef.current || !canvasRef.current || !isCameraOn) {
-      toast({
-        title: "Camera not ready",
-        description: "Please ensure camera is on",
-        variant: "destructive",
-        duration: 3000
-      });
-      return;
-    }
-
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-
-    if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) {
-      console.log('Video not ready - loaded:', videoLoaded, 'dimensions:', video.videoWidth, 'x', video.videoHeight);
-      toast({
-        title: "Video not ready",
-        description: "Please wait for camera to fully load",
-        variant: "destructive",
-        duration: 3000
-      });
-      return;
-    }
-
-    setIsCapturing(true);
-    setShowFlash(true);
-
-    try {
-      const context = canvas.getContext('2d');
-      if (!context) {
-        throw new Error('Could not get canvas context');
-      }
-
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      
-      console.log('Capturing image with dimensions:', canvas.width, 'x', canvas.height);
-      
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      const quality = settings.captureQuality === 'high' ? 0.9 : 
-                     settings.captureQuality === 'medium' ? 0.7 : 0.5;
-      const dataUrl = canvas.toDataURL('image/jpeg', quality);
-      
-      const newCapture: CapturedImage = {
-        dataUrl,
-        timestamp: new Date()
-      };
-      
-      setLastCapture(newCapture);
-      setCapturedImages(prev => [newCapture, ...prev]);
-      setAiDescription('');
-      
-      // Add to AI processing queue if authenticated
-      if (isAuthenticated) {
-        setAiQueue(prev => [...prev, newCapture]);
-      }
-      
-      console.log('Image captured successfully, size:', dataUrl.length, 'bytes');
-      
-      toast({
-        title: "Image Captured",
-        description: "Screenshot saved successfully",
-        duration: 3000
-      });
-    } catch (error) {
-      console.error('Capture error:', error);
-      toast({
-        title: "Capture failed",
-        description: "Unable to capture image from video",
-        variant: "destructive",
-        duration: 3000
-      });
-    } finally {
-      setTimeout(() => {
-        setShowFlash(false);
-        setIsCapturing(false);
-      }, 300);
     }
   };
 
