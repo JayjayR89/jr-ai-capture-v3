@@ -77,15 +77,21 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const savedSettings = JSON.parse(saved);
         setSettings(savedSettings);
         setTempSettings(savedSettings);
+        // Apply theme immediately when settings are loaded
+        applyTheme(savedSettings.theme);
       } else {
-        // Set initial theme based on system preference
-        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        // Set initial theme based on system preference with proper typing
+        const systemTheme: 'light' | 'dark' = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         const initialSettings = { ...defaultSettings, theme: systemTheme };
         setSettings(initialSettings);
         setTempSettings(initialSettings);
+        // Apply initial theme
+        applyTheme(systemTheme);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      // Apply default theme on error
+      applyTheme(defaultSettings.theme);
     }
   };
 
@@ -432,7 +438,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center gap-2"
               >
                 <FileDown className="h-4 w-4" />
-                PDF
+                {isExporting ? 'Exporting...' : 'PDF'}
               </Button>
               <Button
                 variant="outline"
@@ -441,7 +447,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="flex items-center gap-2"
               >
                 <Image className="h-4 w-4" />
-                Image
+                {isExporting ? 'Exporting...' : 'Image'}
               </Button>
             </div>
           </Card>
@@ -486,7 +492,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             Cancel
           </Button>
           <Button onClick={saveSettings} className="flex-1">
-            Save
+            Save Settings
           </Button>
         </div>
       </DialogContent>

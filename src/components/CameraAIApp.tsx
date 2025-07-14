@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, RotateCcw, Circle, Sparkles, Home, Settings, LogIn, LogOut, User } from 'lucide-react';
+import { Camera, CameraOff, RotateCcw, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
@@ -27,9 +27,11 @@ const CameraAIApp: React.FC = () => {
 
   // Camera state
   const [isCameraOn, setIsCameraOn] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
+  const [videoLoaded, setVideoLoaded] = useState(false);
 
   // Capture state
   const [lastCapture, setLastCapture] = useState<CapturedImage | null>(null);
@@ -73,6 +75,7 @@ const CameraAIApp: React.FC = () => {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter(device => device.kind === 'videoinput');
       setAvailableCameras(cameras);
+      console.log('Available cameras:', cameras.length);
     } catch (error) {
       console.error('Error enumerating cameras:', error);
     }
@@ -117,7 +120,12 @@ const CameraAIApp: React.FC = () => {
   };
 
   const requestCameraPermission = async () => {
+    setIsCameraLoading(true);
+    setVideoLoaded(false);
+    
     try {
+      console.log('Requesting camera permission with facing mode:', facingMode);
+      
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode,
@@ -127,14 +135,54 @@ const CameraAIApp: React.FC = () => {
         audio: false
       });
       
+      console.log('Camera stream obtained:', mediaStream.getTracks());
+      
       setStream(mediaStream);
       setIsCameraOn(true);
       
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        // Wait for metadata to load before playing
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch(console.error);
+        
+        // Set up event listeners for better video handling
+        const video = videoRef.current;
+        
+        const handleLoadedMetadata = () => {
+          console.log('Video metadata loaded, dimensions:', video.videoWidth, 'x', video.videoHeight);
+          setVideoLoaded(true);
+          video.play().catch(error => {
+            console.error('Error playing video:', error);
+            toast({
+              title: "Video playback error",
+              description: "Unable to start video preview",
+              variant: "destructive"
+            });
+          });
+        };
+
+        const handleLoadedData = () => {
+          console.log('Video data loaded, ready state:', video.readyState);
+          setIsCameraLoading(false);
+        };
+
+        const handleError = (error: Event) => {
+          console.error('Video element error:', error);
+          setIsCameraLoading(false);
+          toast({
+            title: "Video error",
+            description: "Problem with video stream",
+            variant: "destructive"
+          });
+        };
+
+        video.addEventListener('loadedmetadata', handleLoadedMetadata);
+        video.addEventListener('loadeddata', handleLoadedData);
+        video.addEventListener('error', handleError);
+        
+        // Cleanup event listeners
+        return () => {
+          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+          video.removeEventListener('loadeddata', handleLoadedData);
+          video.removeEventListener('error', handleError);
         };
       }
       
@@ -144,21 +192,40 @@ const CameraAIApp: React.FC = () => {
       });
     } catch (error) {
       console.error('Camera permission error:', error);
-      const shouldExit = window.confirm('Camera permission denied. Would you like to exit the app or reload to try again?\n\nClick OK to exit, Cancel to reload.');
-      if (shouldExit) {
-        window.close();
-      } else {
-        window.location.reload();
+      setIsCameraLoading(false);
+      setIsCameraOn(false);
+      
+      let errorMessage = "Camera access denied";
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = "Camera permission denied. Please allow camera access and try again.";
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = "No camera found. Please connect a camera and try again.";
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = "Camera is being used by another application.";
+        }
       }
+      
+      toast({
+        title: "Camera Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
     }
   };
 
   const stopCamera = () => {
+    console.log('Stopping camera');
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => {
+        track.stop();
+        console.log('Stopped track:', track.kind);
+      });
       setStream(null);
     }
     setIsCameraOn(false);
+    setIsCameraLoading(false);
+    setVideoLoaded(false);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -166,12 +233,14 @@ const CameraAIApp: React.FC = () => {
 
   const flipCamera = async () => {
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
+    console.log('Flipping camera from', facingMode, 'to', newFacingMode);
     setFacingMode(newFacingMode);
     if (isCameraOn) {
       stopCamera();
+      // Small delay to ensure cleanup
       setTimeout(() => {
         requestCameraPermission();
-      }, 100);
+      }, 500);
     }
   };
 
@@ -186,9 +255,11 @@ const CameraAIApp: React.FC = () => {
     }
 
     const video = videoRef.current;
-    
-    // Check if video is actually playing
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+    const canvas = canvasRef.current;
+
+    // Simplified validation - just check if video is playing
+    if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('Video not ready - loaded:', videoLoaded, 'dimensions:', video.videoWidth, 'x', video.videoHeight);
       toast({
         title: "Video not ready",
         description: "Please wait for camera to fully load",
@@ -200,13 +271,17 @@ const CameraAIApp: React.FC = () => {
     setIsCapturing(true);
     setShowFlash(true);
 
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) {
+        throw new Error('Could not get canvas context');
+      }
 
-    if (context) {
-      // Set canvas dimensions to match video actual dimensions
-      canvas.width = video.videoWidth || 640;
-      canvas.height = video.videoHeight || 480;
+      // Set canvas dimensions to match video
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      console.log('Capturing image with dimensions:', canvas.width, 'x', canvas.height);
       
       // Draw the current video frame to canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -222,22 +297,25 @@ const CameraAIApp: React.FC = () => {
       setLastCapture(newCapture);
       setAiDescription(''); // Clear previous description
       
+      console.log('Image captured successfully, size:', dataUrl.length, 'bytes');
+      
       toast({
         title: "Image Captured",
         description: "Screenshot saved successfully"
       });
-    } else {
+    } catch (error) {
+      console.error('Capture error:', error);
       toast({
         title: "Capture failed",
         description: "Unable to capture image from video",
         variant: "destructive"
       });
+    } finally {
+      setTimeout(() => {
+        setShowFlash(false);
+        setIsCapturing(false);
+      }, 300);
     }
-
-    setTimeout(() => {
-      setShowFlash(false);
-      setIsCapturing(false);
-    }, 300);
   };
 
   const describeImage = async () => {
@@ -263,11 +341,15 @@ const CameraAIApp: React.FC = () => {
     setAiDescription('');
 
     try {
+      console.log('Sending image to AI for description, size:', lastCapture.dataUrl.length);
+      
       // Send the image data URL directly to Puter AI
       const response = await puter.ai.chat(
         "Describe what you see in this image in detail. Include any text you can read and objects you can identify.",
         lastCapture.dataUrl
       );
+      
+      console.log('AI description received:', response.substring(0, 100) + '...');
       
       setAiDescription(response);
       setLastCapture(prev => prev ? {
@@ -283,7 +365,7 @@ const CameraAIApp: React.FC = () => {
       console.error('AI description error:', error);
       toast({
         title: "AI description failed",
-        description: "Please try again",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
     } finally {
@@ -353,25 +435,37 @@ const CameraAIApp: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 p-4 space-y-6">
-        {/* Camera Preview - Only show when camera is on */}
-        {isCameraOn && (
+        {/* Camera Preview - Show loading state or camera view */}
+        {(isCameraOn || isCameraLoading) && (
           <Card className="relative">
             <div className="aspect-video bg-muted/20 rounded-lg overflow-hidden camera-preview">
+              {isCameraLoading && (
+                <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader className="h-8 w-8 animate-spin" />
+                    <p className="text-sm text-muted-foreground">Loading camera...</p>
+                  </div>
+                </div>
+              )}
+              
               <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
                 muted 
-                className="w-full h-full object-cover" 
+                className={`w-full h-full object-cover transition-opacity duration-300 ${
+                  videoLoaded ? 'opacity-100' : 'opacity-0'
+                }`}
               />
               
               {/* Flip Camera Button */}
-              {availableCameras.length > 1 && (
+              {availableCameras.length > 1 && videoLoaded && (
                 <Button 
                   variant="secondary" 
                   size="icon" 
                   onClick={flipCamera} 
                   className="absolute top-4 right-4 bg-black/50 hover:bg-black/70"
+                  disabled={isCameraLoading}
                 >
                   <RotateCcw className="h-4 w-4" />
                 </Button>
@@ -386,8 +480,14 @@ const CameraAIApp: React.FC = () => {
             onClick={isCameraOn ? stopCamera : requestCameraPermission} 
             variant={isCameraOn ? "destructive" : "default"} 
             className="flex-1 h-12"
+            disabled={isCameraLoading}
           >
-            {isCameraOn ? (
+            {isCameraLoading ? (
+              <>
+                <Loader className="h-5 w-5 mr-2 animate-spin" />
+                Starting Camera...
+              </>
+            ) : isCameraOn ? (
               <>
                 <CameraOff className="h-5 w-5 mr-2" />
                 Camera Off
@@ -405,7 +505,7 @@ const CameraAIApp: React.FC = () => {
         <div className="grid grid-cols-2 gap-4">
           <Button 
             onClick={captureImage} 
-            disabled={!isCameraOn || isCapturing} 
+            disabled={!isCameraOn || isCapturing || !videoLoaded || isCameraLoading} 
             className="h-12 capture-button gradient-primary"
           >
             <Circle className="h-5 w-5 mr-2" />
@@ -418,8 +518,17 @@ const CameraAIApp: React.FC = () => {
             variant="outline" 
             className="h-12"
           >
-            <Sparkles className="h-5 w-5 mr-2" />
-            {isDescribing ? 'Describing...' : 'Describe'}
+            {isDescribing ? (
+              <>
+                <Loader className="h-5 w-5 mr-2 animate-spin" />
+                Describing...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5 mr-2" />
+                Describe
+              </>
+            )}
           </Button>
         </div>
 
@@ -433,7 +542,7 @@ const CameraAIApp: React.FC = () => {
               <img 
                 src={lastCapture.dataUrl} 
                 alt="Last capture" 
-                className="w-20 h-20 object-cover rounded-lg border" 
+                className="w-20 h-20 object-cover rounded-lg border shadow-sm" 
               />
               <div className="flex-1">
                 <p className="text-sm text-muted-foreground">
@@ -442,6 +551,11 @@ const CameraAIApp: React.FC = () => {
                 <p className="text-xs text-muted-foreground mt-1">
                   Image captured successfully
                 </p>
+                {lastCapture.description && (
+                  <p className="text-xs text-green-600 mt-1">
+                    ✓ AI description available
+                  </p>
+                )}
               </div>
             </div>
           </Card>
