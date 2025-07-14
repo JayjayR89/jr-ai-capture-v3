@@ -1,10 +1,12 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, RotateCcw, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader } from 'lucide-react';
+import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { SettingsModal } from './SettingsModal';
+import { CameraPreview } from './CameraPreview';
+import { AutoCaptureProgress } from './AutoCaptureProgress';
+import { useAutoCapture } from '@/hooks/useAutoCapture';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -20,6 +22,17 @@ interface User {
   fullName?: string;
 }
 
+interface Settings {
+  theme: 'light' | 'dark';
+  streaming: boolean;
+  autoCapture: boolean;
+  captureTime: number;
+  captureAmount: number;
+  captureQuality: 'high' | 'medium' | 'low';
+  completeAlert: boolean;
+  tooltips: boolean;
+}
+
 const CameraAIApp: React.FC = () => {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -32,13 +45,29 @@ const CameraAIApp: React.FC = () => {
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
   // Capture state
   const [lastCapture, setLastCapture] = useState<CapturedImage | null>(null);
+  const [capturedImages, setCapturedImages] = useState<CapturedImage[]>([]);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isDescribing, setIsDescribing] = useState(false);
   const [aiDescription, setAiDescription] = useState('');
   const [showFlash, setShowFlash] = useState(false);
+  const [aiQueue, setAiQueue] = useState<CapturedImage[]>([]);
+  const [processingAI, setProcessingAI] = useState(false);
+
+  // Settings state
+  const [settings, setSettings] = useState<Settings>({
+    theme: 'dark',
+    streaming: true,
+    autoCapture: false,
+    captureTime: 5,
+    captureAmount: 5,
+    captureQuality: 'high',
+    completeAlert: true,
+    tooltips: true
+  });
 
   // UI state
   const [showSettings, setShowSettings] = useState(false);
@@ -48,11 +77,123 @@ const CameraAIApp: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Check for available cameras on mount
+  // Auto-capture hook
+  const autoCapture = useAutoCapture(
+    {
+      enabled: settings.autoCapture,
+      captureTime: settings.captureTime,
+      captureAmount: settings.captureAmount,
+      captureQuality: settings.captureQuality
+    },
+    captureImage,
+    isCameraOn && videoLoaded && !isCapturing
+  );
+
+  // Load settings on mount
   useEffect(() => {
+    loadSettings();
     checkAvailableCameras();
     checkAuthStatus();
   }, []);
+
+  // Process AI queue
+  useEffect(() => {
+    if (aiQueue.length > 0 && !processingAI) {
+      processNextAIRequest();
+    }
+  }, [aiQueue, processingAI]);
+
+  const loadSettings = () => {
+    try {
+      const saved = localStorage.getItem('aiCameraSettings');
+      if (saved) {
+        const savedSettings = JSON.parse(saved);
+        setSettings(savedSettings);
+        applyTheme(savedSettings.theme);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const applyTheme = (theme: 'light' | 'dark') => {
+    const htmlElement = document.documentElement;
+    
+    if (theme === 'dark') {
+      htmlElement.classList.add('dark');
+      htmlElement.classList.remove('light');
+    } else {
+      htmlElement.classList.add('light');
+      htmlElement.classList.remove('dark');
+    }
+  };
+
+  const handleSettingsChange = (newSettings: Settings) => {
+    setSettings(newSettings);
+    applyTheme(newSettings.theme);
+  };
+
+  const processNextAIRequest = async () => {
+    if (aiQueue.length === 0 || processingAI) return;
+    
+    setProcessingAI(true);
+    const imageToProcess = aiQueue[0];
+    
+    try {
+      console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
+      
+      const response = await puter.ai.chat(
+        "Describe what you see in this image in detail. Include any text you can read and objects you can identify.",
+        imageToProcess.dataUrl
+      );
+      
+      // Handle response properly - check if it's a string or object
+      let description = '';
+      if (typeof response === 'string') {
+        description = response;
+      } else if (response && typeof response === 'object' && response.content) {
+        description = response.content;
+      } else if (response && typeof response === 'object' && response.message) {
+        description = response.message;
+      } else {
+        description = 'AI description received but format was unexpected';
+      }
+      
+      console.log('AI description received:', description.substring(0, 100) + '...');
+      
+      // Update the image with description
+      setCapturedImages(prev => 
+        prev.map(img => 
+          img.timestamp === imageToProcess.timestamp 
+            ? { ...img, description }
+            : img
+        )
+      );
+      
+      if (lastCapture && lastCapture.timestamp === imageToProcess.timestamp) {
+        setLastCapture(prev => prev ? { ...prev, description } : null);
+        setAiDescription(description);
+      }
+      
+      toast({
+        title: "Image described successfully",
+        description: "AI analysis complete",
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('AI description error:', error);
+      toast({
+        title: "AI description failed",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+        duration: 3000
+      });
+    } finally {
+      // Remove processed image from queue
+      setAiQueue(prev => prev.slice(1));
+      setProcessingAI(false);
+    }
+  };
 
   const checkAuthStatus = async () => {
     try {
@@ -91,14 +232,16 @@ const CameraAIApp: React.FC = () => {
       });
       toast({
         title: "Signed in successfully",
-        description: `Welcome, ${result.username}!`
+        description: `Welcome, ${result.username}!`,
+        duration: 3000
       });
     } catch (error) {
       console.error('Sign in error:', error);
       toast({
         title: "Sign in failed",
         description: "Please try again",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
     }
   };
@@ -109,11 +252,11 @@ const CameraAIApp: React.FC = () => {
       setIsAuthenticated(false);
       setUser(null);
       toast({
-        title: "Signed out successfully"
+        title: "Signed out successfully",
+        duration: 3000
       });
     } catch (error) {
       console.error('Sign out error:', error);
-      // Still update UI even if API call fails
       setIsAuthenticated(false);
       setUser(null);
     }
@@ -143,7 +286,6 @@ const CameraAIApp: React.FC = () => {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         
-        // Set up event listeners for better video handling
         const video = videoRef.current;
         
         const handleLoadedMetadata = () => {
@@ -154,7 +296,8 @@ const CameraAIApp: React.FC = () => {
             toast({
               title: "Video playback error",
               description: "Unable to start video preview",
-              variant: "destructive"
+              variant: "destructive",
+              duration: 3000
             });
           });
         };
@@ -170,7 +313,8 @@ const CameraAIApp: React.FC = () => {
           toast({
             title: "Video error",
             description: "Problem with video stream",
-            variant: "destructive"
+            variant: "destructive",
+            duration: 3000
           });
         };
 
@@ -178,7 +322,6 @@ const CameraAIApp: React.FC = () => {
         video.addEventListener('loadeddata', handleLoadedData);
         video.addEventListener('error', handleError);
         
-        // Cleanup event listeners
         return () => {
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
           video.removeEventListener('loadeddata', handleLoadedData);
@@ -188,7 +331,8 @@ const CameraAIApp: React.FC = () => {
       
       toast({
         title: "Camera access granted",
-        description: "You can now capture images"
+        description: "You can now capture images",
+        duration: 3000
       });
     } catch (error) {
       console.error('Camera permission error:', error);
@@ -209,7 +353,8 @@ const CameraAIApp: React.FC = () => {
       toast({
         title: "Camera Error",
         description: errorMessage,
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
     }
   };
@@ -226,6 +371,8 @@ const CameraAIApp: React.FC = () => {
     setIsCameraOn(false);
     setIsCameraLoading(false);
     setVideoLoaded(false);
+    setIsMinimized(false);
+    autoCapture.stopAutoCapture();
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -237,7 +384,6 @@ const CameraAIApp: React.FC = () => {
     setFacingMode(newFacingMode);
     if (isCameraOn) {
       stopCamera();
-      // Small delay to ensure cleanup
       setTimeout(() => {
         requestCameraPermission();
       }, 500);
@@ -249,7 +395,8 @@ const CameraAIApp: React.FC = () => {
       toast({
         title: "Camera not ready",
         description: "Please ensure camera is on",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
       return;
     }
@@ -257,13 +404,13 @@ const CameraAIApp: React.FC = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
-    // Simplified validation - just check if video is playing
     if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) {
       console.log('Video not ready - loaded:', videoLoaded, 'dimensions:', video.videoWidth, 'x', video.videoHeight);
       toast({
         title: "Video not ready",
         description: "Please wait for camera to fully load",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
       return;
     }
@@ -277,17 +424,16 @@ const CameraAIApp: React.FC = () => {
         throw new Error('Could not get canvas context');
       }
 
-      // Set canvas dimensions to match video
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       
       console.log('Capturing image with dimensions:', canvas.width, 'x', canvas.height);
       
-      // Draw the current video frame to canvas
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Convert to data URL with high quality
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const quality = settings.captureQuality === 'high' ? 0.9 : 
+                     settings.captureQuality === 'medium' ? 0.7 : 0.5;
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
       
       const newCapture: CapturedImage = {
         dataUrl,
@@ -295,20 +441,28 @@ const CameraAIApp: React.FC = () => {
       };
       
       setLastCapture(newCapture);
-      setAiDescription(''); // Clear previous description
+      setCapturedImages(prev => [newCapture, ...prev]);
+      setAiDescription('');
+      
+      // Add to AI processing queue if authenticated
+      if (isAuthenticated) {
+        setAiQueue(prev => [...prev, newCapture]);
+      }
       
       console.log('Image captured successfully, size:', dataUrl.length, 'bytes');
       
       toast({
         title: "Image Captured",
-        description: "Screenshot saved successfully"
+        description: "Screenshot saved successfully",
+        duration: 3000
       });
     } catch (error) {
       console.error('Capture error:', error);
       toast({
         title: "Capture failed",
         description: "Unable to capture image from video",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
     } finally {
       setTimeout(() => {
@@ -323,7 +477,8 @@ const CameraAIApp: React.FC = () => {
       toast({
         title: "No image to describe",
         description: "Please capture an image first",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
       return;
     }
@@ -332,45 +487,34 @@ const CameraAIApp: React.FC = () => {
       toast({
         title: "Authentication required",
         description: "Please sign in to use AI description",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
       return;
     }
 
-    setIsDescribing(true);
-    setAiDescription('');
-
-    try {
-      console.log('Sending image to AI for description, size:', lastCapture.dataUrl.length);
-      
-      // Send the image data URL directly to Puter AI
-      const response = await puter.ai.chat(
-        "Describe what you see in this image in detail. Include any text you can read and objects you can identify.",
-        lastCapture.dataUrl
-      );
-      
-      console.log('AI description received:', response.substring(0, 100) + '...');
-      
-      setAiDescription(response);
-      setLastCapture(prev => prev ? {
-        ...prev,
-        description: response
-      } : null);
-      
-      toast({
-        title: "Image described successfully",
-        description: "AI analysis complete"
-      });
-    } catch (error) {
-      console.error('AI description error:', error);
-      toast({
-        title: "AI description failed",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive"
-      });
-    } finally {
-      setIsDescribing(false);
+    // Add to queue for processing
+    if (!aiQueue.find(img => img.timestamp === lastCapture.timestamp)) {
+      setAiQueue(prev => [lastCapture, ...prev]);
     }
+  };
+
+  const handleAutoCaptureToggle = () => {
+    if (autoCapture.isActive) {
+      autoCapture.stopAutoCapture();
+    } else {
+      autoCapture.startAutoCapture();
+    }
+  };
+
+  const getCaptureButtonText = () => {
+    if (settings.autoCapture) {
+      if (autoCapture.isActive) {
+        return `Auto-Capture (${autoCapture.currentCount}/${settings.captureAmount})`;
+      }
+      return 'Auto-Capture';
+    }
+    return isCapturing ? 'Capturing...' : 'Capture';
   };
 
   return (
@@ -387,6 +531,7 @@ const CameraAIApp: React.FC = () => {
                 variant="outline" 
                 onClick={() => setShowUserDropdown(!showUserDropdown)} 
                 className="flex items-center gap-2"
+                title={settings.tooltips ? `Signed in as ${user?.username}` : undefined}
               >
                 <User className="h-4 w-4" />
                 {user?.username}
@@ -414,6 +559,7 @@ const CameraAIApp: React.FC = () => {
               variant="outline" 
               onClick={handleSignIn} 
               className="flex items-center gap-2"
+              title={settings.tooltips ? "Sign in to use AI features" : undefined}
             >
               <LogIn className="h-4 w-4" />
               Sign In
@@ -427,6 +573,7 @@ const CameraAIApp: React.FC = () => {
             size="icon" 
             onClick={() => setShowSettings(true)} 
             className="border border-gray-400 rounded-lg"
+            title={settings.tooltips ? "Open settings" : undefined}
           >
             <Settings className="h-5 w-5" />
           </Button>
@@ -435,43 +582,27 @@ const CameraAIApp: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 p-4 space-y-6">
-        {/* Camera Preview - Show loading state or camera view */}
+        {/* Camera Preview */}
         {(isCameraOn || isCameraLoading) && (
-          <Card className="relative">
-            <div className="aspect-video bg-muted/20 rounded-lg overflow-hidden camera-preview">
-              {isCameraLoading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-                  <div className="flex flex-col items-center gap-3">
-                    <Loader className="h-8 w-8 animate-spin" />
-                    <p className="text-sm text-muted-foreground">Loading camera...</p>
-                  </div>
-                </div>
-              )}
-              
-              <video 
-                ref={videoRef} 
-                autoPlay 
-                playsInline 
-                muted 
-                className={`w-full h-full object-cover transition-opacity duration-300 ${
-                  videoLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
-              
-              {/* Flip Camera Button */}
-              {availableCameras.length > 1 && videoLoaded && (
-                <Button 
-                  variant="secondary" 
-                  size="icon" 
-                  onClick={flipCamera} 
-                  className="absolute top-4 right-4 bg-black/50 hover:bg-black/70"
-                  disabled={isCameraLoading}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          </Card>
+          <CameraPreview
+            videoRef={videoRef}
+            isMinimized={isMinimized}
+            onToggleMinimize={() => setIsMinimized(!isMinimized)}
+            onFlipCamera={flipCamera}
+            isCameraLoading={isCameraLoading}
+            videoLoaded={videoLoaded}
+            availableCameras={availableCameras}
+            showFlipButton={!isMinimized}
+          />
+        )}
+
+        {/* Auto-Capture Progress */}
+        {settings.autoCapture && isCameraOn && (
+          <AutoCaptureProgress
+            progress={autoCapture.progress}
+            remainingTime={autoCapture.remainingTime}
+            isActive={autoCapture.isActive}
+          />
         )}
 
         {/* Camera Controls */}
@@ -481,6 +612,7 @@ const CameraAIApp: React.FC = () => {
             variant={isCameraOn ? "destructive" : "default"} 
             className="flex-1 h-12"
             disabled={isCameraLoading}
+            title={settings.tooltips ? (isCameraOn ? "Turn off camera" : "Turn on camera") : undefined}
           >
             {isCameraLoading ? (
               <>
@@ -504,21 +636,26 @@ const CameraAIApp: React.FC = () => {
         {/* Capture Controls */}
         <div className="grid grid-cols-2 gap-4">
           <Button 
-            onClick={captureImage} 
+            onClick={settings.autoCapture ? handleAutoCaptureToggle : captureImage} 
             disabled={!isCameraOn || isCapturing || !videoLoaded || isCameraLoading} 
             className="h-12 capture-button gradient-primary"
+            title={settings.tooltips ? (settings.autoCapture 
+              ? (autoCapture.isActive ? "Stop auto-capture" : "Start auto-capture")
+              : "Take a photo"
+            ) : undefined}
           >
             <Circle className="h-5 w-5 mr-2" />
-            {isCapturing ? 'Capturing...' : 'Capture'}
+            {getCaptureButtonText()}
           </Button>
           
           <Button 
             onClick={describeImage} 
-            disabled={!lastCapture || isDescribing} 
+            disabled={!lastCapture || processingAI} 
             variant="outline" 
             className="h-12"
+            title={settings.tooltips ? "Get AI description of last captured image" : undefined}
           >
-            {isDescribing ? (
+            {processingAI ? (
               <>
                 <Loader className="h-5 w-5 mr-2 animate-spin" />
                 Describing...
@@ -556,6 +693,11 @@ const CameraAIApp: React.FC = () => {
                     ✓ AI description available
                   </p>
                 )}
+                {aiQueue.find(img => img.timestamp === lastCapture.timestamp) && (
+                  <p className="text-xs text-yellow-600 mt-1">
+                    ⏳ Queued for AI description
+                  </p>
+                )}
               </div>
             </div>
           </Card>
@@ -571,6 +713,18 @@ const CameraAIApp: React.FC = () => {
               <p className="text-sm leading-relaxed whitespace-pre-wrap">
                 {aiDescription}
               </p>
+            </div>
+          </Card>
+        )}
+
+        {/* AI Processing Queue Status */}
+        {aiQueue.length > 0 && (
+          <Card className="p-4 bg-muted/20">
+            <div className="flex items-center gap-2">
+              <Loader className="h-4 w-4 animate-spin" />
+              <span className="text-sm text-muted-foreground">
+                Processing {aiQueue.length} image{aiQueue.length > 1 ? 's' : ''} for AI description...
+              </span>
             </div>
           </Card>
         )}
@@ -601,7 +755,8 @@ const CameraAIApp: React.FC = () => {
         isAuthenticated={isAuthenticated} 
         user={user} 
         lastCapture={lastCapture} 
-        aiDescription={aiDescription} 
+        aiDescription={aiDescription}
+        onSettingsChange={handleSettingsChange}
       />
     </div>
   );

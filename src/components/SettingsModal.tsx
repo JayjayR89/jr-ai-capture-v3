@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { X, Download, RotateCcw, Bell, BellOff, Palette, Zap, ZapOff, HelpCircle, FileDown, Image } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +39,7 @@ interface SettingsModalProps {
   user: User | null;
   lastCapture: CapturedImage | null;
   aiDescription: string;
+  onSettingsChange?: (settings: Settings) => void;
 }
 
 const defaultSettings: Settings = {
@@ -59,7 +59,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   isAuthenticated,
   user,
   lastCapture,
-  aiDescription
+  aiDescription,
+  onSettingsChange
 }) => {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [tempSettings, setTempSettings] = useState<Settings>(defaultSettings);
@@ -77,33 +78,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         const savedSettings = JSON.parse(saved);
         setSettings(savedSettings);
         setTempSettings(savedSettings);
-        // Apply theme immediately when settings are loaded
-        applyTheme(savedSettings.theme);
       } else {
-        // Set initial theme based on system preference with proper typing
         const systemTheme: 'light' | 'dark' = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         const initialSettings = { ...defaultSettings, theme: systemTheme };
         setSettings(initialSettings);
         setTempSettings(initialSettings);
-        // Apply initial theme
-        applyTheme(systemTheme);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
-      // Apply default theme on error
-      applyTheme(defaultSettings.theme);
-    }
-  };
-
-  const applyTheme = (theme: 'light' | 'dark') => {
-    const htmlElement = document.documentElement;
-    
-    if (theme === 'dark') {
-      htmlElement.classList.add('dark');
-      htmlElement.classList.remove('light');
-    } else {
-      htmlElement.classList.add('light');
-      htmlElement.classList.remove('dark');
     }
   };
 
@@ -112,12 +94,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       localStorage.setItem('aiCameraSettings', JSON.stringify(tempSettings));
       setSettings(tempSettings);
       
-      // Apply theme immediately
-      applyTheme(tempSettings.theme);
+      // Notify parent component of settings change
+      if (onSettingsChange) {
+        onSettingsChange(tempSettings);
+      }
       
       toast({
         title: "Settings saved",
-        description: "Your preferences have been updated"
+        description: "Your preferences have been updated",
+        duration: 3000
       });
       
       onClose();
@@ -126,7 +111,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       toast({
         title: "Save failed",
         description: "Unable to save settings",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
     }
   };
@@ -137,7 +123,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       setTempSettings(defaultSettings);
       toast({
         title: "Settings reset",
-        description: "All settings have been reset to defaults"
+        description: "All settings have been reset to defaults",
+        duration: 3000
       });
     }
   };
@@ -152,7 +139,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       toast({
         title: "No content to export",
         description: "Capture an image first",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
       return;
     }
@@ -172,14 +160,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       
       toast({
         title: `${format.toUpperCase()} exported`,
-        description: `Session exported as ${filename}.${format}`
+        description: `Session exported as ${filename}.${format}`,
+        duration: 3000
       });
     } catch (error) {
       console.error('Export error:', error);
       toast({
         title: "Export failed",
         description: "Unable to export session",
-        variant: "destructive"
+        variant: "destructive",
+        duration: 3000
       });
     } finally {
       setIsExporting(false);
@@ -189,7 +179,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const exportAsPDF = async (filename: string) => {
     const pdf = new jsPDF();
     
-    // Add header
     pdf.setFontSize(20);
     pdf.text('AI Camera Session', 20, 30);
     
@@ -201,12 +190,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     
     let yPosition = 75;
     
-    // Add captured image
     if (lastCapture) {
       pdf.text('Captured Image:', 20, yPosition);
       yPosition += 10;
       
-      // Convert image to fit PDF
       const imgData = lastCapture.dataUrl;
       const imgWidth = 150;
       const imgHeight = 100;
@@ -218,7 +205,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       yPosition += 20;
     }
     
-    // Add AI description
     if (aiDescription) {
       pdf.text('AI Description:', 20, yPosition);
       yPosition += 10;
@@ -231,7 +217,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const exportAsImage = async (filename: string) => {
-    // Create a temporary container for the export content
     const exportContainer = document.createElement('div');
     exportContainer.style.position = 'absolute';
     exportContainer.style.left = '-9999px';
@@ -242,7 +227,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     exportContainer.style.color = '#000000';
     exportContainer.style.fontFamily = 'Arial, sans-serif';
     
-    // Build export content
     let content = `
       <h1 style="font-size: 24px; margin-bottom: 20px;">AI Camera Session</h1>
       <p style="margin-bottom: 10px;"><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
@@ -270,20 +254,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     exportContainer.innerHTML = content;
     document.body.appendChild(exportContainer);
     
-    // Capture as image
     const canvas = await html2canvas(exportContainer);
     const link = document.createElement('a');
     link.download = `${filename}.png`;
     link.href = canvas.toDataURL();
     link.click();
     
-    // Cleanup
     document.body.removeChild(exportContainer);
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto scrollbar-hide">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5" />
