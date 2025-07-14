@@ -193,27 +193,38 @@ const CameraAIApp: React.FC = () => {
         const savedSettings = JSON.parse(saved);
         setSettings(savedSettings);
         applyTheme(savedSettings.theme);
+      } else {
+        // Apply default theme on first load
+        applyTheme(settings.theme);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      applyTheme(settings.theme);
     }
   };
 
   const applyTheme = (theme: 'light' | 'dark') => {
     const htmlElement = document.documentElement;
     
-    if (theme === 'dark') {
-      htmlElement.classList.add('dark');
-      htmlElement.classList.remove('light');
-    } else {
-      htmlElement.classList.add('light');
-      htmlElement.classList.remove('dark');
-    }
+    // Remove existing theme classes
+    htmlElement.classList.remove('light', 'dark');
+    
+    // Add new theme class
+    htmlElement.classList.add(theme);
+    
+    console.log('Theme applied:', theme, 'Current classes:', htmlElement.classList.toString());
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
     setSettings(newSettings);
     applyTheme(newSettings.theme);
+    
+    // Save settings to localStorage
+    try {
+      localStorage.setItem('aiCameraSettings', JSON.stringify(newSettings));
+    } catch (error) {
+      console.error('Error saving settings:', error);
+    }
   };
 
   const processNextAIRequest = async () => {
@@ -225,24 +236,23 @@ const CameraAIApp: React.FC = () => {
     try {
       console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
       
+      // Use the same format as the working examples
       const response = await puter.ai.chat(
         "Describe what you see in this image in detail. Include any text you can read and objects you can identify.",
         imageToProcess.dataUrl
       );
       
-      // Handle response properly - check if it's a string or object
+      // Handle the response - it should be a string directly
       let description = '';
       if (typeof response === 'string') {
         description = response;
-      } else if (response && typeof response === 'object' && response.content) {
-        description = response.content;
-      } else if (response && typeof response === 'object' && response.message) {
-        description = response.message;
+      } else if (response && response.toString) {
+        description = response.toString();
       } else {
-        description = 'AI description received but format was unexpected';
+        description = 'AI description received but could not be processed';
       }
       
-      console.log('AI description received:', description.substring(0, 100) + '...');
+      console.log('AI description received:', description.substring ? description.substring(0, 100) + '...' : description);
       
       // Update the image with description
       setCapturedImages(prev => 
@@ -267,7 +277,7 @@ const CameraAIApp: React.FC = () => {
       console.error('AI description error:', error);
       toast({
         title: "AI description failed",
-        description: error instanceof Error ? error.message : "Please try again",
+        description: "Please try again",
         variant: "destructive",
         duration: 3000
       });

@@ -71,6 +71,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     loadSettings();
   }, []);
 
+  // Apply theme immediately when temp settings change
+  useEffect(() => {
+    if (onSettingsChange) {
+      // Apply theme change immediately for live preview
+      const htmlElement = document.documentElement;
+      htmlElement.classList.remove('light', 'dark');
+      htmlElement.classList.add(tempSettings.theme);
+    }
+  }, [tempSettings.theme, onSettingsChange]);
+
   const loadSettings = () => {
     try {
       const saved = localStorage.getItem('aiCameraSettings');
@@ -79,7 +89,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         setSettings(savedSettings);
         setTempSettings(savedSettings);
       } else {
-        const systemTheme: 'light' | 'dark' = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         const initialSettings = { ...defaultSettings, theme: systemTheme };
         setSettings(initialSettings);
         setTempSettings(initialSettings);
@@ -131,6 +141,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   const cancelChanges = () => {
     setTempSettings(settings);
+    // Restore original theme when canceling
+    if (onSettingsChange) {
+      const htmlElement = document.documentElement;
+      htmlElement.classList.remove('light', 'dark');
+      htmlElement.classList.add(settings.theme);
+    }
     onClose();
   };
 

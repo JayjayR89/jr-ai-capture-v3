@@ -64,14 +64,14 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         </Button>
         
         {/* Top Right - Flip Camera Button */}
-        {showFlipButton && availableCameras.length > 1 && videoLoaded && !isMinimized && (
+        {showFlipButton && availableCameras.length > 1 && videoLoaded && (
           <Button 
             variant="secondary" 
             size="icon" 
             onClick={onFlipCamera} 
             className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 z-20"
             disabled={isCameraLoading}
-            title="Switch camera"
+            title="Switch camera (front/back)"
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
