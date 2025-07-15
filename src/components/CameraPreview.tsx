@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Minimize2, Maximize2, Loader } from 'lucide-react';
@@ -64,7 +63,7 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
         </Button>
         
         {/* Top Right - Flip Camera Button - Always show when camera is ready and multiple cameras available */}
-        {showFlipButton && availableCameras.length > 1 && videoLoaded && !isMinimized && (
+        {showFlipButton && availableCameras.length > 1 && videoLoaded && (
           <Button 
             variant="secondary" 
             size="icon" 

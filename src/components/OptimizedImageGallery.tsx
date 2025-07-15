@@ -79,9 +79,8 @@ const ImageItem = React.memo(({
         </div>
         {image.description ? (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground line-clamp-3">
-              {image.description.substring(0, 150)}
-              {image.description.length > 150 && '...'}
+            <p className="text-xs text-muted-foreground">
+              {image.description}
             </p>
             <Button
               variant="ghost"

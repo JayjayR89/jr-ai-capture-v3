@@ -34,6 +34,7 @@ const OptimizedCameraAIApp: React.FC = () => {
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [isPuterAvailable, setIsPuterAvailable] = useState(false);
 
   // Camera state
   const [isCameraOn, setIsCameraOn] = useState(false);
@@ -72,12 +73,16 @@ const OptimizedCameraAIApp: React.FC = () => {
   });
 
   // AI Queue for processing descriptions
-  const { 
-    addToQueue: addToAIQueue, 
+  const {
+    addToQueue: addToAIQueue,
     isProcessing: processingAI,
-    processedCount: aiProcessedCount 
+    processedCount: aiProcessedCount
   } = useAIQueue(
     async (dataUrl: string) => {
+      if (!isPuterAvailable) {
+        throw new Error('AI services are not available');
+      }
+      
       const enhancedPrompt = `Analyze this image in detail. Please provide a comprehensive description that includes:
 1. Main objects and their positions
 2. Colors and lighting conditions
@@ -124,14 +129,14 @@ Be specific and descriptive, but concise.`;
         
         context.drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        const quality = settings.captureQuality === 'high' ? 0.9 : 
+        const quality = settings.captureQuality === 'high' ? 0.9 :
                        settings.captureQuality === 'medium' ? 0.7 : 0.5;
         const dataUrl = canvas.toDataURL('image/jpeg', quality);
         
         const imageId = addImage(dataUrl);
         
-        // Add to AI queue if authenticated
-        if (isAuthenticated) {
+        // Add to AI queue if authenticated and Puter is available
+        if (isAuthenticated && isPuterAvailable) {
           addToAIQueue(dataUrl);
         }
         
@@ -140,7 +145,7 @@ Be specific and descriptive, but concise.`;
         console.error('Auto-capture error:', error);
         setShowFlash(false);
       }
-    }, [isCameraOn, videoLoaded, settings.captureQuality, isAuthenticated, addImage, addToAIQueue]),
+    }, [isCameraOn, videoLoaded, settings.captureQuality, isAuthenticated, isPuterAvailable, addImage, addToAIQueue]),
     isCameraOn && videoLoaded
   );
 
@@ -149,6 +154,7 @@ Be specific and descriptive, but concise.`;
     loadSettings();
     checkAvailableCameras();
     checkAuthStatus();
+    checkPuterAvailability();
   }, []);
 
   // Process AI queue results
@@ -196,6 +202,11 @@ Be specific and descriptive, but concise.`;
   }, [applyTheme]);
 
   const checkAuthStatus = useCallback(async () => {
+    if (!isPuterAvailable) {
+      console.log('Puter not available, skipping auth check');
+      return;
+    }
+
     try {
       const isSignedIn = await puter.auth.isSignedIn();
       if (isSignedIn) {
@@ -208,6 +219,19 @@ Be specific and descriptive, but concise.`;
       }
     } catch (error) {
       console.log('Not signed in or error checking auth status:', error);
+    }
+  }, [isPuterAvailable]);
+
+  const checkPuterAvailability = useCallback(() => {
+    try {
+      const available = typeof window !== 'undefined' &&
+                       (window as any).puter &&
+                       (window as any).puter.ai &&
+                       (window as any).puter.auth;
+      setIsPuterAvailable(available);
+    } catch (error) {
+      console.log('Puter not available:', error);
+      setIsPuterAvailable(false);
     }
   }, []);
 
@@ -222,6 +246,16 @@ Be specific and descriptive, but concise.`;
   }, []);
 
   const handleSignIn = useCallback(async () => {
+    if (!isPuterAvailable) {
+      toast({
+        title: "AI Services Unavailable",
+        description: "Please check your internet connection and refresh the page.",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
     try {
       const result = await puter.auth.signIn();
       setIsAuthenticated(true);
@@ -243,9 +277,19 @@ Be specific and descriptive, but concise.`;
         duration: 3000
       });
     }
-  }, []);
+  }, [isPuterAvailable]);
 
   const handleSignOut = useCallback(async () => {
+    if (!isPuterAvailable) {
+      toast({
+        title: "AI Services Unavailable",
+        description: "Please check your internet connection and refresh the page.",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
     try {
       await puter.auth.signOut();
       setIsAuthenticated(false);
@@ -259,7 +303,7 @@ Be specific and descriptive, but concise.`;
       setIsAuthenticated(false);
       setUser(null);
     }
-  }, []);
+  }, [isPuterAvailable]);
 
   const requestCameraPermission = useCallback(async () => {
     setIsCameraLoading(true);
@@ -421,8 +465,8 @@ Be specific and descriptive, but concise.`;
       
       const imageId = addImage(dataUrl);
       
-      // Add to AI queue if authenticated
-      if (isAuthenticated) {
+      // Add to AI queue if authenticated and Puter is available
+      if (isAuthenticated && isPuterAvailable) {
         addToAIQueue(dataUrl);
       }
       
@@ -501,11 +545,12 @@ Be specific and descriptive, but concise.`;
               )}
             </div>
           ) : (
-            <Button 
-              variant="outline" 
-              onClick={handleSignIn} 
+            <Button
+              variant="outline"
+              onClick={handleSignIn}
+              disabled={!isPuterAvailable}
               className="flex items-center gap-2"
-              title={settings.tooltips ? "Sign in to use AI features" : undefined}
+              title={settings.tooltips ? (isPuterAvailable ? "Sign in to use AI features" : "AI services unavailable") : undefined}
             >
               <LogIn className="h-4 w-4" />
               Sign In
@@ -514,10 +559,16 @@ Be specific and descriptive, but concise.`;
         </div>
         
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setShowSettings(true)} 
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isPuterAvailable ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-xs text-muted-foreground">
+              {isPuterAvailable ? 'AI Online' : 'AI Offline'}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(true)}
             className="border border-gray-400 rounded-lg"
             title={settings.tooltips ? "Open settings" : undefined}
           >
@@ -594,15 +645,15 @@ Be specific and descriptive, but concise.`;
             {getCaptureButtonText}
           </Button>
           
-          <Button 
+          <Button
             onClick={() => {
               const lastImage = capturedImages[0];
               if (lastImage && !lastImage.description) {
                 addToAIQueue(lastImage.dataUrl);
               }
-            }} 
-            disabled={capturedImages.length === 0 || processingAI || settings.autoCapture} 
-            variant="outline" 
+            }}
+            disabled={capturedImages.length === 0 || processingAI || settings.autoCapture || !isPuterAvailable}
+            variant="outline"
             className="h-12"
             title={settings.tooltips ? "Get AI description of last captured image" : undefined}
           >
@@ -626,6 +677,35 @@ Be specific and descriptive, but concise.`;
           onRemoveImage={removeImage}
           onUpdateDescription={updateImageDescription}
         />
+
+        {/* Export Section */}
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Export</h3>
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => {
+              const data = capturedImages.map(img => ({
+                id: img.id,
+                dataUrl: img.dataUrl,
+                description: img.description,
+                timestamp: img.timestamp.toISOString()
+              }));
+              const json = JSON.stringify(data, null, 2);
+              const blob = new Blob([json], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'captured_images.json';
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="w-full mt-2"
+          >
+            Export as JSON
+          </Button>
+        </Card>
 
         {/* AI Processing Queue Status */}
         {processingAI && (
@@ -659,14 +739,15 @@ Be specific and descriptive, but concise.`;
       </footer>
 
       {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={showSettings} 
-        onClose={() => setShowSettings(false)} 
-        isAuthenticated={isAuthenticated} 
-        user={user} 
+      <SettingsModal
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        isAuthenticated={isAuthenticated}
+        user={user}
         lastCapture={capturedImages[0] || null}
         aiDescription={capturedImages[0]?.description || ''}
         onSettingsChange={handleSettingsChange}
+        isPuterAvailable={isPuterAvailable}
       />
     </div>
   );
