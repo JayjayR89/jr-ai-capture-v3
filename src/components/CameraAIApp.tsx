@@ -36,6 +36,12 @@ interface Settings {
   previewMinWidth: number;
   previewMinHeight: number;
   maintainAspectRatio: boolean;
+  captureImageName: string;
+  pdfHeaderColor: string;
+  pdfIncludeTimestamp: boolean;
+  pdfIncludeUserInfo: boolean;
+  pdfImageSize: 'small' | 'medium' | 'large';
+  pdfPageOrientation: 'portrait' | 'landscape';
 }
 
 const CameraAIApp: React.FC = () => {
@@ -74,7 +80,13 @@ const CameraAIApp: React.FC = () => {
     tooltips: true,
     previewMinWidth: 400,
     previewMinHeight: 225,
-    maintainAspectRatio: true
+    maintainAspectRatio: true,
+    captureImageName: 'Capture',
+    pdfHeaderColor: '#3B82F6',
+    pdfIncludeTimestamp: true,
+    pdfIncludeUserInfo: true,
+    pdfImageSize: 'medium',
+    pdfPageOrientation: 'portrait'
   });
 
   // UI state
@@ -1103,7 +1115,7 @@ const CameraAIApp: React.FC = () => {
           <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Puter.com
           </a>{' '}
-          | Version 1.0 | 2025
+          | Version 1.0.60 | 2025
         </p>
       </footer>
 

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Volume2, Download, Trash2, FileText } from 'lucide-react';
+import { X, Volume2, Download, Trash2, FileText, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
@@ -116,6 +116,22 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   const clearSelection = () => {
     setSelectedImages(new Set());
     setIsSelectionMode(false);
+  };
+
+  const copyDescription = async (description: string) => {
+    try {
+      await navigator.clipboard.writeText(description);
+      // You could add a toast notification here if available
+    } catch (error) {
+      console.error('Failed to copy text:', error);
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = description;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
   };
 
   if (images.length === 0) return null;
@@ -275,11 +291,11 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
         </div>
       </Card>
 
-      {/* Full-size image popup */}
+      {/* Full-size image popup - Fixed scrolling and added copy button */}
       <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden">
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden flex flex-col">
           {selectedImage && (
-            <div className="relative">
+            <>
               <DialogClose asChild>
                 <Button
                   variant="secondary"
@@ -290,15 +306,16 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                 </Button>
               </DialogClose>
               
-              <div className="p-6">
+              {/* Scrollable content area */}
+              <div className="flex-1 overflow-y-auto scrollbar-hide p-6">
                 <img
                   src={selectedImage.dataUrl}
                   alt="Full size capture"
-                  className="w-full h-auto max-h-[60vh] object-contain rounded-lg"
+                  className="w-full h-auto max-h-[50vh] object-contain rounded-lg mb-4"
                 />
                 
                 {selectedImage.description && (
-                  <div className="mt-4 space-y-3">
+                  <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">AI Description</h3>
                       <Button
@@ -313,7 +330,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                       </Button>
                     </div>
                     <div 
-                      className="text-sm leading-relaxed prose prose-invert max-w-none"
+                      className="text-sm leading-relaxed prose prose-invert max-w-none overflow-wrap-anywhere"
                       dangerouslySetInnerHTML={{ 
                         __html: formatDescription(selectedImage.description) 
                       }}
@@ -325,7 +342,21 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                   Captured: {selectedImage.timestamp.toLocaleString()}
                 </p>
               </div>
-            </div>
+              
+              {/* Sticky bottom section with copy button */}
+              {selectedImage.description && (
+                <div className="border-t bg-background p-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => copyDescription(selectedImage.description!)}
+                    className="w-full flex items-center gap-2"
+                  >
+                    <Copy className="h-4 w-4" />
+                    Copy Description Text
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </DialogContent>
       </Dialog>

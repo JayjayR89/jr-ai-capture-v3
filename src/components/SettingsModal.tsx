@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, RotateCcw, Bell, BellOff, Palette, Zap, ZapOff, HelpCircle, FileDown, Image } from 'lucide-react';
+import { X, Download, RotateCcw, Bell, BellOff, Palette, Zap, ZapOff, HelpCircle, FileDown, Image, Bot, Monitor, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -34,6 +35,12 @@ interface Settings {
   previewMinWidth: number;
   previewMinHeight: number;
   maintainAspectRatio: boolean;
+  captureImageName: string;
+  pdfHeaderColor: string;
+  pdfIncludeTimestamp: boolean;
+  pdfIncludeUserInfo: boolean;
+  pdfImageSize: 'small' | 'medium' | 'large';
+  pdfPageOrientation: 'portrait' | 'landscape';
 }
 
 interface SettingsModalProps {
@@ -57,7 +64,13 @@ const defaultSettings: Settings = {
   tooltips: true,
   previewMinWidth: 400,
   previewMinHeight: 225,
-  maintainAspectRatio: true
+  maintainAspectRatio: true,
+  captureImageName: 'Capture',
+  pdfHeaderColor: '#3B82F6',
+  pdfIncludeTimestamp: true,
+  pdfIncludeUserInfo: true,
+  pdfImageSize: 'medium',
+  pdfPageOrientation: 'portrait'
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -294,8 +307,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto scrollbar-hide">
-        <DialogHeader>
+      <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="p-6 pb-0">
           <DialogTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5" />
             Settings
@@ -305,283 +318,428 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          {/* Theme Settings */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Palette className="h-4 w-4" />
-              Theme
-            </h3>
-            <Select
-              value={tempSettings.theme}
-              onValueChange={(value: 'light' | 'dark') =>
-                setTempSettings(prev => ({ ...prev, theme: value }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="light">Light</SelectItem>
-                <SelectItem value="dark">Dark</SelectItem>
-              </SelectContent>
-            </Select>
-          </Card>
+        {/* Tabbed Content - Scrollable */}
+        <div className="flex-1 overflow-hidden">
+          <Tabs defaultValue="ai" className="h-full flex flex-col">
+            <TabsList className="grid w-full grid-cols-3 mx-6 mt-4">
+              <TabsTrigger value="ai" className="flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                AI
+              </TabsTrigger>
+              <TabsTrigger value="ui" className="flex items-center gap-2">
+                <Monitor className="h-4 w-4" />
+                UI
+              </TabsTrigger>
+              <TabsTrigger value="pdf" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                PDF
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Streaming Settings */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              {tempSettings.streaming ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
-              Streaming
-            </h3>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="streaming">Enable streaming AI responses</Label>
-              <Switch
-                id="streaming"
-                checked={tempSettings.streaming}
-                onCheckedChange={(checked) =>
-                  setTempSettings(prev => ({ ...prev, streaming: checked }))
-                }
-              />
-            </div>
-          </Card>
+            {/* AI Tab */}
+            <TabsContent value="ai" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4">
+              <div className="space-y-4">
+                {/* Auto-Capture Settings */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Auto-Capture</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="autoCapture">Enable auto-capture</Label>
+                      <Switch
+                        id="autoCapture"
+                        checked={tempSettings.autoCapture}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, autoCapture: checked }))
+                        }
+                      />
+                    </div>
+                    
+                    {tempSettings.autoCapture && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Capture Time (seconds)</Label>
+                          <Select
+                            value={tempSettings.captureTime.toString()}
+                            onValueChange={(value) =>
+                              setTempSettings(prev => ({ ...prev, captureTime: parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
+                                <SelectItem key={num} value={num.toString()}>{num}s</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Capture Amount</Label>
+                          <Select
+                            value={tempSettings.captureAmount.toString()}
+                            onValueChange={(value) =>
+                              setTempSettings(prev => ({ ...prev, captureAmount: parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
+                                <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label>Capture Quality</Label>
+                          <Select
+                            value={tempSettings.captureQuality}
+                            onValueChange={(value: 'high' | 'medium' | 'low') =>
+                              setTempSettings(prev => ({ ...prev, captureQuality: value }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">High</SelectItem>
+                              <SelectItem value="medium">Medium</SelectItem>
+                              <SelectItem value="low">Low</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="completeAlert">Complete alert</Label>
+                          <Switch
+                            id="completeAlert"
+                            checked={tempSettings.completeAlert}
+                            onCheckedChange={(checked) =>
+                              setTempSettings(prev => ({ ...prev, completeAlert: checked }))
+                            }
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </Card>
 
-          {/* Auto-Capture Settings */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3">Auto-Capture</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="autoCapture">Enable auto-capture</Label>
-                <Switch
-                  id="autoCapture"
-                  checked={tempSettings.autoCapture}
-                  onCheckedChange={(checked) =>
-                    setTempSettings(prev => ({ ...prev, autoCapture: checked }))
-                  }
-                />
-              </div>
-              
-              {tempSettings.autoCapture && (
-                <>
-                  <div className="space-y-2">
-                    <Label>Capture Time (seconds)</Label>
-                    <Select
-                      value={tempSettings.captureTime.toString()}
-                      onValueChange={(value) =>
-                        setTempSettings(prev => ({ ...prev, captureTime: parseInt(value) }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
-                          <SelectItem key={num} value={num.toString()}>{num}s</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Capture Amount</Label>
-                    <Select
-                      value={tempSettings.captureAmount.toString()}
-                      onValueChange={(value) =>
-                        setTempSettings(prev => ({ ...prev, captureAmount: parseInt(value) }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 30 }, (_, i) => i + 1).map(num => (
-                          <SelectItem key={num} value={num.toString()}>{num}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label>Capture Quality</Label>
-                    <Select
-                      value={tempSettings.captureQuality}
-                      onValueChange={(value: 'high' | 'medium' | 'low') =>
-                        setTempSettings(prev => ({ ...prev, captureQuality: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="low">Low</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
+                {/* Streaming Settings */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    {tempSettings.streaming ? <Zap className="h-4 w-4" /> : <ZapOff className="h-4 w-4" />}
+                    Streaming
+                  </h3>
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="completeAlert">Complete alert</Label>
+                    <Label htmlFor="streaming">Enable streaming AI responses</Label>
                     <Switch
-                      id="completeAlert"
-                      checked={tempSettings.completeAlert}
+                      id="streaming"
+                      checked={tempSettings.streaming}
                       onCheckedChange={(checked) =>
-                        setTempSettings(prev => ({ ...prev, completeAlert: checked }))
+                        setTempSettings(prev => ({ ...prev, streaming: checked }))
                       }
                     />
                   </div>
-                </>
-              )}
-            </div>
-          </Card>
+                </Card>
 
-          {/* Export Session */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export Session
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              <Button
-                variant="outline"
-                onClick={() => exportSession('pdf')}
-                disabled={isExporting || !lastCapture}
-                className="flex items-center gap-2"
-              >
-                <FileDown className="h-4 w-4" />
-                {isExporting ? 'Exporting...' : 'PDF'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => exportSession('image')}
-                disabled={isExporting || !lastCapture}
-                className="flex items-center gap-2"
-              >
-                <Image className="h-4 w-4" />
-                {isExporting ? 'Exporting...' : 'Image'}
-              </Button>
-            </div>
-          </Card>
+                {/* Live Preview Min Size */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Image className="h-4 w-4" />
+                    Live Preview Min Size
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="maintainAspectRatio">Maintain aspect ratio</Label>
+                      <Switch
+                        id="maintainAspectRatio"
+                        checked={tempSettings.maintainAspectRatio}
+                        onCheckedChange={(checked) => {
+                          setTempSettings(prev => {
+                            if (checked) {
+                              const aspectHeight = Math.round((prev.previewMinWidth * 9) / 16);
+                              return { 
+                                ...prev, 
+                                maintainAspectRatio: checked,
+                                previewMinHeight: aspectHeight
+                              };
+                            }
+                            return { ...prev, maintainAspectRatio: checked };
+                          });
+                        }}
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="previewWidth">Width (px)</Label>
+                        <Input
+                          id="previewWidth"
+                          type="number"
+                          min="200"
+                          max="1200"
+                          value={tempSettings.previewMinWidth}
+                          onChange={(e) => {
+                            const width = parseInt(e.target.value) || 400;
+                            setTempSettings(prev => {
+                              if (prev.maintainAspectRatio) {
+                                const aspectHeight = Math.round((width * 9) / 16);
+                                return { 
+                                  ...prev, 
+                                  previewMinWidth: width,
+                                  previewMinHeight: aspectHeight
+                                };
+                              }
+                              return { ...prev, previewMinWidth: width };
+                            });
+                          }}
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="previewHeight">Height (px)</Label>
+                        <Input
+                          id="previewHeight"
+                          type="number"
+                          min="150"
+                          max="800"
+                          value={tempSettings.previewMinHeight}
+                          disabled={tempSettings.maintainAspectRatio}
+                          onChange={(e) => {
+                            const height = parseInt(e.target.value) || 225;
+                            setTempSettings(prev => ({ 
+                              ...prev, 
+                              previewMinHeight: height 
+                            }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Set the minimum size for the camera preview when minimized. 
+                      {tempSettings.maintainAspectRatio && " Height is auto-calculated to maintain 16:9 aspect ratio."}
+                    </p>
+                  </div>
+                </Card>
 
-          {/* Live Preview Min Size */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <Image className="h-4 w-4" />
-              Live Preview Min Size
-            </h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="maintainAspectRatio">Maintain aspect ratio</Label>
-                <Switch
-                  id="maintainAspectRatio"
-                  checked={tempSettings.maintainAspectRatio}
-                  onCheckedChange={(checked) => {
-                    setTempSettings(prev => {
-                      if (checked) {
-                        // Auto-calculate height based on 16:9 aspect ratio
-                        const aspectHeight = Math.round((prev.previewMinWidth * 9) / 16);
-                        return { 
-                          ...prev, 
-                          maintainAspectRatio: checked,
-                          previewMinHeight: aspectHeight
-                        };
+                {/* Capture Image Name */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Capture Image Name</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="captureImageName">Default name for captured images</Label>
+                    <Input
+                      id="captureImageName"
+                      type="text"
+                      value={tempSettings.captureImageName}
+                      onChange={(e) =>
+                        setTempSettings(prev => ({ ...prev, captureImageName: e.target.value }))
                       }
-                      return { ...prev, maintainAspectRatio: checked };
-                    });
-                  }}
-                />
+                      placeholder="Capture"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This name will be used as the base name for captured images.
+                    </p>
+                  </div>
+                </Card>
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="previewWidth">Width (px)</Label>
-                  <Input
-                    id="previewWidth"
-                    type="number"
-                    min="200"
-                    max="1200"
-                    value={tempSettings.previewMinWidth}
-                    onChange={(e) => {
-                      const width = parseInt(e.target.value) || 400;
-                      setTempSettings(prev => {
-                        if (prev.maintainAspectRatio) {
-                          // Auto-calculate height based on 16:9 aspect ratio
-                          const aspectHeight = Math.round((width * 9) / 16);
-                          return { 
-                            ...prev, 
-                            previewMinWidth: width,
-                            previewMinHeight: aspectHeight
-                          };
+            </TabsContent>
+
+            {/* UI Tab */}
+            <TabsContent value="ui" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4">
+              <div className="space-y-4">
+                {/* Theme Settings */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Palette className="h-4 w-4" />
+                    Theme
+                  </h3>
+                  <Select
+                    value={tempSettings.theme}
+                    onValueChange={(value: 'light' | 'dark') =>
+                      setTempSettings(prev => ({ ...prev, theme: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="light">Light</SelectItem>
+                      <SelectItem value="dark">Dark</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Card>
+
+                {/* Tooltips */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4" />
+                    Tooltips
+                  </h3>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="tooltips">Show tooltips on hover</Label>
+                    <Switch
+                      id="tooltips"
+                      checked={tempSettings.tooltips}
+                      onCheckedChange={(checked) =>
+                        setTempSettings(prev => ({ ...prev, tooltips: checked }))
+                      }
+                    />
+                  </div>
+                </Card>
+
+                {/* Export Session */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    Export Session
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => exportSession('pdf')}
+                      disabled={isExporting || !lastCapture}
+                      className="flex items-center gap-2"
+                    >
+                      <FileDown className="h-4 w-4" />
+                      {isExporting ? 'Exporting...' : 'PDF'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => exportSession('image')}
+                      disabled={isExporting || !lastCapture}
+                      className="flex items-center gap-2"
+                    >
+                      <Image className="h-4 w-4" />
+                      {isExporting ? 'Exporting...' : 'Image'}
+                    </Button>
+                  </div>
+                </Card>
+
+                {/* Reset to Defaults */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3 flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    Reset
+                  </h3>
+                  <Button
+                    variant="outline"
+                    onClick={resetToDefaults}
+                    className="w-full"
+                  >
+                    Reset to Defaults
+                  </Button>
+                </Card>
+              </div>
+            </TabsContent>
+
+            {/* PDF Tab */}
+            <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4">
+              <div className="space-y-4">
+                {/* PDF Header Color */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Header Color</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="pdfHeaderColor">PDF header background color</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        id="pdfHeaderColor"
+                        type="color"
+                        value={tempSettings.pdfHeaderColor}
+                        onChange={(e) =>
+                          setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
                         }
-                        return { ...prev, previewMinWidth: width };
-                      });
-                    }}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="previewHeight">Height (px)</Label>
-                  <Input
-                    id="previewHeight"
-                    type="number"
-                    min="150"
-                    max="800"
-                    value={tempSettings.previewMinHeight}
-                    disabled={tempSettings.maintainAspectRatio}
-                    onChange={(e) => {
-                      const height = parseInt(e.target.value) || 225;
-                      setTempSettings(prev => ({ 
-                        ...prev, 
-                        previewMinHeight: height 
-                      }));
-                    }}
-                  />
-                </div>
+                        className="w-16 h-10 p-1"
+                      />
+                      <Input
+                        type="text"
+                        value={tempSettings.pdfHeaderColor}
+                        onChange={(e) =>
+                          setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
+                        }
+                        placeholder="#3B82F6"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                </Card>
+
+                {/* PDF Page Orientation */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Page Orientation</h3>
+                  <Select
+                    value={tempSettings.pdfPageOrientation}
+                    onValueChange={(value: 'portrait' | 'landscape') =>
+                      setTempSettings(prev => ({ ...prev, pdfPageOrientation: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="portrait">Portrait</SelectItem>
+                      <SelectItem value="landscape">Landscape</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Card>
+
+                {/* PDF Image Size */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Image Size in PDF</h3>
+                  <Select
+                    value={tempSettings.pdfImageSize}
+                    onValueChange={(value: 'small' | 'medium' | 'large') =>
+                      setTempSettings(prev => ({ ...prev, pdfImageSize: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="small">Small</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="large">Large</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </Card>
+
+                {/* PDF Include Options */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Include in PDF</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pdfIncludeTimestamp">Include timestamp</Label>
+                      <Switch
+                        id="pdfIncludeTimestamp"
+                        checked={tempSettings.pdfIncludeTimestamp}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, pdfIncludeTimestamp: checked }))
+                        }
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pdfIncludeUserInfo">Include user information</Label>
+                      <Switch
+                        id="pdfIncludeUserInfo"
+                        checked={tempSettings.pdfIncludeUserInfo}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, pdfIncludeUserInfo: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </Card>
               </div>
-              
-              <p className="text-xs text-muted-foreground">
-                Set the minimum size for the camera preview when minimized. 
-                {tempSettings.maintainAspectRatio && " Height is auto-calculated to maintain 16:9 aspect ratio."}
-              </p>
-            </div>
-          </Card>
-
-          {/* Tooltips */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <HelpCircle className="h-4 w-4" />
-              Tooltips
-            </h3>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="tooltips">Show tooltips on hover</Label>
-              <Switch
-                id="tooltips"
-                checked={tempSettings.tooltips}
-                onCheckedChange={(checked) =>
-                  setTempSettings(prev => ({ ...prev, tooltips: checked }))
-                }
-              />
-            </div>
-          </Card>
-
-          {/* Reset to Defaults */}
-          <Card className="p-4">
-            <h3 className="font-medium mb-3 flex items-center gap-2">
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </h3>
-            <Button
-              variant="outline"
-              onClick={resetToDefaults}
-              className="w-full"
-            >
-              Reset to Defaults
-            </Button>
-          </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex gap-2 pt-4 border-t">
+        {/* Sticky Footer Actions */}
+        <div className="flex gap-2 p-6 pt-4 border-t bg-background">
           <Button variant="outline" onClick={cancelChanges} className="flex-1">
             Cancel
           </Button>
