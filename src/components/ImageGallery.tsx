@@ -28,13 +28,38 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const formatDescription = (description: string) => {
-    // Add proper formatting for better readability
+    // Enhanced markdown-like formatting for better readability
     return description
+      // Headers
+      .replace(/^### (.*$)/gim, '<h3 class="text-base font-semibold mt-4 mb-2">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 class="text-lg font-bold mt-4 mb-2">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold mt-4 mb-3">$1</h1>')
+      // Bold text
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      .replace(/__(.*?)__/g, '<strong class="font-semibold">$1</strong>')
+      // Italic text
+      .replace(/\*(.*?)\*/g, '<em class="italic">$1</em>')
+      .replace(/_(.*?)_/g, '<em class="italic">$1</em>')
+      // Lists
+      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc">$1</li>')
+      .replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-decimal">$1</li>')
+      // Code blocks
+      .replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded text-sm font-mono">$1</code>')
+      // Line breaks and paragraphs
+      .replace(/\n\n/g, '</p><p class="mb-2">')
       .replace(/\n/g, '<br>')
-      .replace(/\. /g, '.<br><br>')
-      .replace(/: /g, ':<br>')
-      .replace(/\? /g, '?<br><br>')
-      .replace(/! /g, '!<br><br>');
+      // Wrap in paragraph tags
+      .replace(/^(.*)$/gm, '<p class="mb-2">$1</p>')
+      // Clean up empty paragraphs
+      .replace(/<p class="mb-2"><\/p>/g, '')
+      // Wrap lists properly
+      .replace(/(<li class="ml-4 list-[^"]+">.*?<\/li>)/gs, '<ul class="mb-2">$1</ul>')
+      // Enhanced punctuation spacing
+      .replace(/\. /g, '. ')
+      .replace(/: /g, ': ')
+      .replace(/\? /g, '? ')
+      .replace(/! /g, '! ');
   };
 
   const speakDescription = async (description: string) => {

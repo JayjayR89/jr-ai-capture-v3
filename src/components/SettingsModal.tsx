@@ -37,15 +37,43 @@ interface Settings {
   maintainAspectRatio: boolean;
   captureImageName: string;
   pdfHeaderColor: string;
+  pdfTextColor: string;
+  pdfBorderColor: string;
+  pdfGradientColor: string;
   pdfIncludeTimestamp: boolean;
   pdfIncludeUserInfo: boolean;
+  pdfCustomUserInfo: string;
+  pdfIncludeEmojis: boolean;
   pdfImageSize: 'small' | 'medium' | 'large';
   pdfPageOrientation: 'portrait' | 'landscape';
+  pdfDescriptionBorder: boolean;
+  pdfTextSizePercent: number;
+  pdfHeaderPadding: number;
+  pdfImagePadding: number;
+  pdfTextPadding: number;
+  pdfHeaderMargin: number;
+  pdfImageMargin: number;
+  pdfTextMargin: number;
   customAiPrompt: string;
   aiPersonAnalysis: boolean;
+  aiPersonGender: boolean;
+  aiPersonAge: boolean;
+  aiPersonMood: boolean;
   aiSceneryAnalysis: boolean;
+  aiSceneryTime: boolean;
+  aiSceneryWeather: boolean;
+  aiSceneryLocation: boolean;
   aiObjectAnalysis: boolean;
+  aiObjectName: boolean;
+  aiObjectSize: boolean;
+  aiObjectText: boolean;
+  aiObjectUses: boolean;
+  aiObjectFacts: boolean;
   aiRandomAnalysis: boolean;
+  aiRandomColors: boolean;
+  aiRandomLocation: boolean;
+  aiRandomPeopleCount: boolean;
+  aiRandomVehicles: boolean;
 }
 
 interface SettingsModalProps {
@@ -72,15 +100,43 @@ const defaultSettings: Settings = {
   maintainAspectRatio: true,
   captureImageName: 'Capture',
   pdfHeaderColor: '#3B82F6',
+  pdfTextColor: '#1F2937',
+  pdfBorderColor: '#E5E7EB',
+  pdfGradientColor: '#F3F4F6',
   pdfIncludeTimestamp: true,
   pdfIncludeUserInfo: true,
+  pdfCustomUserInfo: '',
+  pdfIncludeEmojis: true,
   pdfImageSize: 'medium',
   pdfPageOrientation: 'portrait',
+  pdfDescriptionBorder: false,
+  pdfTextSizePercent: 100,
+  pdfHeaderPadding: 10,
+  pdfImagePadding: 5,
+  pdfTextPadding: 8,
+  pdfHeaderMargin: 15,
+  pdfImageMargin: 10,
+  pdfTextMargin: 12,
   customAiPrompt: 'Analyze this image in detail and provide a comprehensive description.',
   aiPersonAnalysis: false,
+  aiPersonGender: false,
+  aiPersonAge: false,
+  aiPersonMood: false,
   aiSceneryAnalysis: false,
+  aiSceneryTime: false,
+  aiSceneryWeather: false,
+  aiSceneryLocation: false,
   aiObjectAnalysis: false,
-  aiRandomAnalysis: false
+  aiObjectName: false,
+  aiObjectSize: false,
+  aiObjectText: false,
+  aiObjectUses: false,
+  aiObjectFacts: false,
+  aiRandomAnalysis: false,
+  aiRandomColors: false,
+  aiRandomLocation: false,
+  aiRandomPeopleCount: false,
+  aiRandomVehicles: false
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -577,67 +633,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </div>
                 </Card>
 
-                {/* AI Analysis Options */}
-                <Card className="p-4">
-                  <h3 className="font-medium mb-3">AI Analysis Features</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="aiPersonAnalysis">Person Analysis</Label>
-                        <p className="text-xs text-muted-foreground">Gender, Age, Mood detection</p>
-                      </div>
-                      <Switch
-                        id="aiPersonAnalysis"
-                        checked={tempSettings.aiPersonAnalysis}
-                        onCheckedChange={(checked) =>
-                          setTempSettings(prev => ({ ...prev, aiPersonAnalysis: checked }))
-                        }
-                      />
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="aiSceneryAnalysis">Scenery Analysis</Label>
-                        <p className="text-xs text-muted-foreground">Day/night, weather, location type</p>
-                      </div>
-                      <Switch
-                        id="aiSceneryAnalysis"
-                        checked={tempSettings.aiSceneryAnalysis}
-                        onCheckedChange={(checked) =>
-                          setTempSettings(prev => ({ ...prev, aiSceneryAnalysis: checked }))
-                        }
-                      />
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="aiObjectAnalysis">Object Analysis</Label>
-                        <p className="text-xs text-muted-foreground">Name, size, text, uses, facts</p>
-                      </div>
-                      <Switch
-                        id="aiObjectAnalysis"
-                        checked={tempSettings.aiObjectAnalysis}
-                        onCheckedChange={(checked) =>
-                          setTempSettings(prev => ({ ...prev, aiObjectAnalysis: checked }))
-                        }
-                      />
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="aiRandomAnalysis">Additional Details</Label>
-                        <p className="text-xs text-muted-foreground">Colors, location, people count, vehicles</p>
-                      </div>
-                      <Switch
-                        id="aiRandomAnalysis"
-                        checked={tempSettings.aiRandomAnalysis}
-                        onCheckedChange={(checked) =>
-                          setTempSettings(prev => ({ ...prev, aiRandomAnalysis: checked }))
-                        }
-                      />
-                    </div>
-                  </div>
-                </Card>
+
               </div>
             </TabsContent>
 
@@ -729,131 +725,241 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </TabsContent>
 
-            {/* PDF Tab */}
-            <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4">
+            {/* PDF Tab - Enhanced Scrolling */}
+            <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4 max-h-[calc(90vh-200px)]">
               <div className="space-y-4">
-                {/* PDF Preview Mockup */}
+                {/* Enhanced PDF Preview Mockup */}
                 <Card className="p-4">
                   <h3 className="font-medium mb-3">PDF Preview</h3>
-                  <div className="border rounded-lg p-4 bg-white text-black text-xs" style={{ 
-                    aspectRatio: tempSettings.pdfPageOrientation === 'landscape' ? '4/3' : '3/4',
-                    maxHeight: '300px'
-                  }}>
-                    {/* Header */}
-                    <div 
-                      className="text-white p-2 rounded mb-2 font-bold text-center"
-                      style={{ backgroundColor: tempSettings.pdfHeaderColor }}
-                    >
-                      Live AI Camera Export
-                    </div>
-                    
-                    {/* Content */}
-                    <div className="space-y-2">
-                      {tempSettings.pdfIncludeTimestamp && (
-                        <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
-                      )}
-                      {tempSettings.pdfIncludeUserInfo && user && (
-                        <p><strong>User:</strong> {user.username}</p>
-                      )}
-                      
-                      <div className="mt-3">
-                        <p className="font-semibold">📸 Captured Image</p>
-                        <div 
-                          className="bg-gray-200 border rounded mt-1 flex items-center justify-center text-gray-500"
-                          style={{ 
-                            height: tempSettings.pdfImageSize === 'large' ? '80px' : 
-                                   tempSettings.pdfImageSize === 'medium' ? '60px' : '40px'
-                          }}
-                        >
-                          [Image Preview]
-                        </div>
+                  <div className="flex gap-4 justify-center">
+                    {/* Page 1 */}
+                    <div className="border rounded-lg p-3 bg-white text-black text-xs flex-1 max-w-[200px]" style={{ 
+                      aspectRatio: tempSettings.pdfPageOrientation === 'landscape' ? '4/3' : '3/4',
+                      fontSize: `${tempSettings.pdfTextSizePercent}%`
+                    }}>
+                      {/* Header */}
+                      <div 
+                        className="text-white rounded mb-2 font-bold text-center"
+                        style={{ 
+                          backgroundColor: tempSettings.pdfHeaderColor,
+                          color: tempSettings.pdfTextColor,
+                          padding: `${tempSettings.pdfHeaderPadding}px`,
+                          margin: `${tempSettings.pdfHeaderMargin}px 0`
+                        }}
+                      >
+                        {tempSettings.pdfIncludeEmojis ? '📸 ' : ''}Live AI Camera Export
                       </div>
                       
-                      <div className="mt-3">
-                        <p className="font-semibold">🤖 AI Description</p>
-                        <div className="text-gray-600 text-xs mt-1">
-                          <p>Sample AI description text would appear here...</p>
-                          {tempSettings.aiPersonAnalysis && <p>• Person Analysis: Gender, age, mood details</p>}
-                          {tempSettings.aiSceneryAnalysis && <p>• Scenery Analysis: Location, weather, time of day</p>}
-                          {tempSettings.aiObjectAnalysis && <p>• Object Analysis: Items, text, uses, facts</p>}
-                          {tempSettings.aiRandomAnalysis && <p>• Additional Details: Colors, location, counts</p>}
+                      {/* Content */}
+                      <div className="space-y-1">
+                        {tempSettings.pdfIncludeTimestamp && (
+                          <p><strong>Generated:</strong> {new Date().toLocaleDateString()}</p>
+                        )}
+                        {tempSettings.pdfIncludeUserInfo && (
+                          <p><strong>User:</strong> {tempSettings.pdfCustomUserInfo || user?.username || 'User'}</p>
+                        )}
+                        
+                        <div style={{ margin: `${tempSettings.pdfImageMargin}px 0` }}>
+                          <p className="font-semibold">{tempSettings.pdfIncludeEmojis ? '📸 ' : ''}Captured Image</p>
+                          <div 
+                            className="bg-gray-200 rounded mt-1 flex items-center justify-center text-gray-500"
+                            style={{ 
+                              height: tempSettings.pdfImageSize === 'large' ? '60px' : 
+                                     tempSettings.pdfImageSize === 'medium' ? '45px' : '30px',
+                              padding: `${tempSettings.pdfImagePadding}px`,
+                              border: `1px solid ${tempSettings.pdfBorderColor}`
+                            }}
+                          >
+                            [Image]
+                          </div>
                         </div>
+                        
+                        <div style={{ margin: `${tempSettings.pdfTextMargin}px 0` }}>
+                          <p className="font-semibold">{tempSettings.pdfIncludeEmojis ? '🤖 ' : ''}AI Description</p>
+                          <div 
+                            className="text-xs mt-1"
+                            style={{ 
+                              color: tempSettings.pdfTextColor,
+                              padding: `${tempSettings.pdfTextPadding}px`,
+                              border: tempSettings.pdfDescriptionBorder ? `1px solid ${tempSettings.pdfBorderColor}` : 'none',
+                              borderRadius: tempSettings.pdfDescriptionBorder ? '4px' : '0'
+                            }}
+                          >
+                            <p>Sample AI description...</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Page 2 (if multiple pages) */}
+                    <div className="border rounded-lg p-3 bg-white text-black text-xs flex-1 max-w-[200px]" style={{ 
+                      aspectRatio: tempSettings.pdfPageOrientation === 'landscape' ? '4/3' : '3/4',
+                      fontSize: `${tempSettings.pdfTextSizePercent}%`
+                    }}>
+                      <div 
+                        className="text-white rounded mb-2 font-bold text-center"
+                        style={{ 
+                          backgroundColor: tempSettings.pdfHeaderColor,
+                          color: tempSettings.pdfTextColor,
+                          padding: `${tempSettings.pdfHeaderPadding}px`,
+                          margin: `${tempSettings.pdfHeaderMargin}px 0`
+                        }}
+                      >
+                        Page 2
+                      </div>
+                      <div className="text-center text-gray-400 mt-8">
+                        <p>Additional content...</p>
+                        <p>Continued description...</p>
                       </div>
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Live preview of how your PDF export will look with current settings.
+                  <p className="text-xs text-muted-foreground mt-2 text-center">
+                    Live preview showing centered PDF pages with current styling settings.
                   </p>
                 </Card>
 
-                {/* PDF Header Color */}
+                {/* Colors Section */}
                 <Card className="p-4">
-                  <h3 className="font-medium mb-3">Header Color</h3>
-                  <div className="space-y-2">
-                    <Label htmlFor="pdfHeaderColor">PDF header background color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="pdfHeaderColor"
-                        type="color"
-                        value={tempSettings.pdfHeaderColor}
-                        onChange={(e) =>
-                          setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
-                        }
-                        className="w-16 h-10 p-1"
-                      />
-                      <Input
-                        type="text"
-                        value={tempSettings.pdfHeaderColor}
-                        onChange={(e) =>
-                          setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
-                        }
-                        placeholder="#3B82F6"
-                        className="flex-1"
-                      />
+                  <h3 className="font-medium mb-3">Colors</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pdfHeaderColor">Header</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="pdfHeaderColor"
+                          type="color"
+                          value={tempSettings.pdfHeaderColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          type="text"
+                          value={tempSettings.pdfHeaderColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfHeaderColor: e.target.value }))
+                          }
+                          className="flex-1 text-xs"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="pdfTextColor">Text</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="pdfTextColor"
+                          type="color"
+                          value={tempSettings.pdfTextColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfTextColor: e.target.value }))
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          type="text"
+                          value={tempSettings.pdfTextColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfTextColor: e.target.value }))
+                          }
+                          className="flex-1 text-xs"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="pdfBorderColor">Borders</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="pdfBorderColor"
+                          type="color"
+                          value={tempSettings.pdfBorderColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfBorderColor: e.target.value }))
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          type="text"
+                          value={tempSettings.pdfBorderColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfBorderColor: e.target.value }))
+                          }
+                          className="flex-1 text-xs"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="pdfGradientColor">Gradients</Label>
+                      <div className="flex gap-2">
+                        <Input
+                          id="pdfGradientColor"
+                          type="color"
+                          value={tempSettings.pdfGradientColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfGradientColor: e.target.value }))
+                          }
+                          className="w-12 h-8 p-1"
+                        />
+                        <Input
+                          type="text"
+                          value={tempSettings.pdfGradientColor}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfGradientColor: e.target.value }))
+                          }
+                          className="flex-1 text-xs"
+                        />
+                      </div>
                     </div>
                   </div>
                 </Card>
 
-                {/* PDF Page Orientation */}
+                {/* Page Layout */}
                 <Card className="p-4">
-                  <h3 className="font-medium mb-3">Page Orientation</h3>
-                  <Select
-                    value={tempSettings.pdfPageOrientation}
-                    onValueChange={(value: 'portrait' | 'landscape') =>
-                      setTempSettings(prev => ({ ...prev, pdfPageOrientation: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="portrait">Portrait</SelectItem>
-                      <SelectItem value="landscape">Landscape</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <h3 className="font-medium mb-3">Page Layout</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Page Orientation</Label>
+                      <Select
+                        value={tempSettings.pdfPageOrientation}
+                        onValueChange={(value: 'portrait' | 'landscape') =>
+                          setTempSettings(prev => ({ ...prev, pdfPageOrientation: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="portrait">Portrait</SelectItem>
+                          <SelectItem value="landscape">Landscape</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Image Size</Label>
+                      <Select
+                        value={tempSettings.pdfImageSize}
+                        onValueChange={(value: 'small' | 'medium' | 'large') =>
+                          setTempSettings(prev => ({ ...prev, pdfImageSize: value }))
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="small">Small</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="large">Large</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </Card>
 
-                {/* PDF Image Size */}
-                <Card className="p-4">
-                  <h3 className="font-medium mb-3">Image Size in PDF</h3>
-                  <Select
-                    value={tempSettings.pdfImageSize}
-                    onValueChange={(value: 'small' | 'medium' | 'large') =>
-                      setTempSettings(prev => ({ ...prev, pdfImageSize: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="small">Small</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="large">Large</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Card>
-
-                {/* PDF Include Options */}
+                {/* Include in PDF */}
                 <Card className="p-4">
                   <h3 className="font-medium mb-3">Include in PDF</h3>
                   <div className="space-y-4">
@@ -876,6 +982,433 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           setTempSettings(prev => ({ ...prev, pdfIncludeUserInfo: checked }))
                         }
                       />
+                    </div>
+                    {tempSettings.pdfIncludeUserInfo && (
+                      <div className="space-y-2">
+                        <Label htmlFor="pdfCustomUserInfo">Custom user information</Label>
+                        <Input
+                          id="pdfCustomUserInfo"
+                          type="text"
+                          value={tempSettings.pdfCustomUserInfo}
+                          onChange={(e) =>
+                            setTempSettings(prev => ({ ...prev, pdfCustomUserInfo: e.target.value }))
+                          }
+                          placeholder="Enter custom user info or leave blank for username"
+                        />
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pdfIncludeEmojis">Enable emojis</Label>
+                      <Switch
+                        id="pdfIncludeEmojis"
+                        checked={tempSettings.pdfIncludeEmojis}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, pdfIncludeEmojis: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Styles Section */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Styles</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="pdfDescriptionBorder">Description border</Label>
+                      <Switch
+                        id="pdfDescriptionBorder"
+                        checked={tempSettings.pdfDescriptionBorder}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, pdfDescriptionBorder: checked }))
+                        }
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="pdfTextSize">Text size: {tempSettings.pdfTextSizePercent}%</Label>
+                      <input
+                        id="pdfTextSize"
+                        type="range"
+                        min="50"
+                        max="200"
+                        value={tempSettings.pdfTextSizePercent}
+                        onChange={(e) =>
+                          setTempSettings(prev => ({ ...prev, pdfTextSizePercent: parseInt(e.target.value) }))
+                        }
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Applies to all text while maintaining hierarchy (H1, H2, H3, etc.)
+                      </p>
+                    </div>
+                    
+                    {/* Padding Controls */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Padding (px)</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfHeaderPadding" className="text-xs">Header</Label>
+                          <Input
+                            id="pdfHeaderPadding"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfHeaderPadding}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfHeaderPadding: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfImagePadding" className="text-xs">Images</Label>
+                          <Input
+                            id="pdfImagePadding"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfImagePadding}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfImagePadding: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfTextPadding" className="text-xs">Text</Label>
+                          <Input
+                            id="pdfTextPadding"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfTextPadding}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfTextPadding: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Margin Controls */}
+                    <div className="space-y-3">
+                      <Label className="text-sm font-medium">Margins (px)</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfHeaderMargin" className="text-xs">Header</Label>
+                          <Input
+                            id="pdfHeaderMargin"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfHeaderMargin}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfHeaderMargin: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfImageMargin" className="text-xs">Images</Label>
+                          <Input
+                            id="pdfImageMargin"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfImageMargin}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfImageMargin: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="pdfTextMargin" className="text-xs">Text</Label>
+                          <Input
+                            id="pdfTextMargin"
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={tempSettings.pdfTextMargin}
+                            onChange={(e) =>
+                              setTempSettings(prev => ({ ...prev, pdfTextMargin: parseInt(e.target.value) || 0 }))
+                            }
+                            className="text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* AI Analysis Features - Moved from AI Tab */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">AI Analysis Features</h3>
+                  <div className="space-y-4">
+                    {/* Person Analysis */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="aiPersonAnalysis">Person Analysis</Label>
+                          <p className="text-xs text-muted-foreground">Analyze people in images</p>
+                        </div>
+                        <Switch
+                          id="aiPersonAnalysis"
+                          checked={tempSettings.aiPersonAnalysis}
+                          onCheckedChange={(checked) =>
+                            setTempSettings(prev => ({ ...prev, aiPersonAnalysis: checked }))
+                          }
+                        />
+                      </div>
+                      {tempSettings.aiPersonAnalysis && (
+                        <div className="ml-4 space-y-2 border-l-2 border-primary/20 pl-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiPersonGender"
+                              checked={tempSettings.aiPersonGender}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiPersonGender: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiPersonGender" className="text-sm">Gender detection</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiPersonAge"
+                              checked={tempSettings.aiPersonAge}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiPersonAge: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiPersonAge" className="text-sm">Age estimation</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiPersonMood"
+                              checked={tempSettings.aiPersonMood}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiPersonMood: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiPersonMood" className="text-sm">Mood detection</Label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Scenery Analysis */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="aiSceneryAnalysis">Scenery Analysis</Label>
+                          <p className="text-xs text-muted-foreground">Analyze environment and setting</p>
+                        </div>
+                        <Switch
+                          id="aiSceneryAnalysis"
+                          checked={tempSettings.aiSceneryAnalysis}
+                          onCheckedChange={(checked) =>
+                            setTempSettings(prev => ({ ...prev, aiSceneryAnalysis: checked }))
+                          }
+                        />
+                      </div>
+                      {tempSettings.aiSceneryAnalysis && (
+                        <div className="ml-4 space-y-2 border-l-2 border-primary/20 pl-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiSceneryTime"
+                              checked={tempSettings.aiSceneryTime}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiSceneryTime: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiSceneryTime" className="text-sm">Time of day</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiSceneryWeather"
+                              checked={tempSettings.aiSceneryWeather}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiSceneryWeather: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiSceneryWeather" className="text-sm">Weather conditions</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiSceneryLocation"
+                              checked={tempSettings.aiSceneryLocation}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiSceneryLocation: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiSceneryLocation" className="text-sm">Location type</Label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Object Analysis */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="aiObjectAnalysis">Object Analysis</Label>
+                          <p className="text-xs text-muted-foreground">Identify and analyze objects</p>
+                        </div>
+                        <Switch
+                          id="aiObjectAnalysis"
+                          checked={tempSettings.aiObjectAnalysis}
+                          onCheckedChange={(checked) =>
+                            setTempSettings(prev => ({ ...prev, aiObjectAnalysis: checked }))
+                          }
+                        />
+                      </div>
+                      {tempSettings.aiObjectAnalysis && (
+                        <div className="ml-4 space-y-2 border-l-2 border-primary/20 pl-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiObjectName"
+                              checked={tempSettings.aiObjectName}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiObjectName: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiObjectName" className="text-sm">Object names</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiObjectSize"
+                              checked={tempSettings.aiObjectSize}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiObjectSize: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiObjectSize" className="text-sm">Size estimation</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiObjectText"
+                              checked={tempSettings.aiObjectText}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiObjectText: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiObjectText" className="text-sm">Text extraction</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiObjectUses"
+                              checked={tempSettings.aiObjectUses}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiObjectUses: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiObjectUses" className="text-sm">Object uses</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiObjectFacts"
+                              checked={tempSettings.aiObjectFacts}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiObjectFacts: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiObjectFacts" className="text-sm">Interesting facts</Label>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Random Analysis */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="aiRandomAnalysis">Additional Details</Label>
+                          <p className="text-xs text-muted-foreground">Extra contextual information</p>
+                        </div>
+                        <Switch
+                          id="aiRandomAnalysis"
+                          checked={tempSettings.aiRandomAnalysis}
+                          onCheckedChange={(checked) =>
+                            setTempSettings(prev => ({ ...prev, aiRandomAnalysis: checked }))
+                          }
+                        />
+                      </div>
+                      {tempSettings.aiRandomAnalysis && (
+                        <div className="ml-4 space-y-2 border-l-2 border-primary/20 pl-4">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiRandomColors"
+                              checked={tempSettings.aiRandomColors}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiRandomColors: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiRandomColors" className="text-sm">Dominant colors</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiRandomLocation"
+                              checked={tempSettings.aiRandomLocation}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiRandomLocation: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiRandomLocation" className="text-sm">Geographic location</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiRandomPeopleCount"
+                              checked={tempSettings.aiRandomPeopleCount}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiRandomPeopleCount: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiRandomPeopleCount" className="text-sm">People count</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="aiRandomVehicles"
+                              checked={tempSettings.aiRandomVehicles}
+                              onChange={(e) =>
+                                setTempSettings(prev => ({ ...prev, aiRandomVehicles: e.target.checked }))
+                              }
+                              className="rounded"
+                            />
+                            <Label htmlFor="aiRandomVehicles" className="text-sm">Vehicle identification</Label>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>

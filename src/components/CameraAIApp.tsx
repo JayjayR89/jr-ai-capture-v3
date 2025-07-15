@@ -38,15 +38,43 @@ interface Settings {
   maintainAspectRatio: boolean;
   captureImageName: string;
   pdfHeaderColor: string;
+  pdfTextColor: string;
+  pdfBorderColor: string;
+  pdfGradientColor: string;
   pdfIncludeTimestamp: boolean;
   pdfIncludeUserInfo: boolean;
+  pdfCustomUserInfo: string;
+  pdfIncludeEmojis: boolean;
   pdfImageSize: 'small' | 'medium' | 'large';
   pdfPageOrientation: 'portrait' | 'landscape';
+  pdfDescriptionBorder: boolean;
+  pdfTextSizePercent: number;
+  pdfHeaderPadding: number;
+  pdfImagePadding: number;
+  pdfTextPadding: number;
+  pdfHeaderMargin: number;
+  pdfImageMargin: number;
+  pdfTextMargin: number;
   customAiPrompt: string;
   aiPersonAnalysis: boolean;
+  aiPersonGender: boolean;
+  aiPersonAge: boolean;
+  aiPersonMood: boolean;
   aiSceneryAnalysis: boolean;
+  aiSceneryTime: boolean;
+  aiSceneryWeather: boolean;
+  aiSceneryLocation: boolean;
   aiObjectAnalysis: boolean;
+  aiObjectName: boolean;
+  aiObjectSize: boolean;
+  aiObjectText: boolean;
+  aiObjectUses: boolean;
+  aiObjectFacts: boolean;
   aiRandomAnalysis: boolean;
+  aiRandomColors: boolean;
+  aiRandomLocation: boolean;
+  aiRandomPeopleCount: boolean;
+  aiRandomVehicles: boolean;
 }
 
 const CameraAIApp: React.FC = () => {
@@ -88,15 +116,43 @@ const CameraAIApp: React.FC = () => {
     maintainAspectRatio: true,
     captureImageName: 'Capture',
     pdfHeaderColor: '#3B82F6',
+    pdfTextColor: '#1F2937',
+    pdfBorderColor: '#E5E7EB',
+    pdfGradientColor: '#F3F4F6',
     pdfIncludeTimestamp: true,
     pdfIncludeUserInfo: true,
+    pdfCustomUserInfo: '',
+    pdfIncludeEmojis: true,
     pdfImageSize: 'medium',
     pdfPageOrientation: 'portrait',
+    pdfDescriptionBorder: false,
+    pdfTextSizePercent: 100,
+    pdfHeaderPadding: 10,
+    pdfImagePadding: 5,
+    pdfTextPadding: 8,
+    pdfHeaderMargin: 15,
+    pdfImageMargin: 10,
+    pdfTextMargin: 12,
     customAiPrompt: 'Analyze this image in detail and provide a comprehensive description.',
     aiPersonAnalysis: false,
+    aiPersonGender: false,
+    aiPersonAge: false,
+    aiPersonMood: false,
     aiSceneryAnalysis: false,
+    aiSceneryTime: false,
+    aiSceneryWeather: false,
+    aiSceneryLocation: false,
     aiObjectAnalysis: false,
-    aiRandomAnalysis: false
+    aiObjectName: false,
+    aiObjectSize: false,
+    aiObjectText: false,
+    aiObjectUses: false,
+    aiObjectFacts: false,
+    aiRandomAnalysis: false,
+    aiRandomColors: false,
+    aiRandomLocation: false,
+    aiRandomPeopleCount: false,
+    aiRandomVehicles: false
   });
 
   // UI state
@@ -1165,7 +1221,7 @@ const CameraAIApp: React.FC = () => {
           <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Puter.com
           </a>{' '}
-          | Version 1.0.61 | 2025
+          | Version 1.0.62 | 2025
         </p>
       </footer>
 
