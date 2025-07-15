@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { toast } from '@/hooks/use-toast';
 import { SettingsModal } from './SettingsModal';
 import { CameraPreview } from './CameraPreview';
@@ -163,6 +164,62 @@ const CameraAIApp: React.FC = () => {
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Markdown formatting function for AI descriptions
+  const formatMarkdown = (text: string) => {
+    if (!text) return '';
+    return text
+      // Headers
+      .replace(/^### (.*$)/gim, '<h3 class="text-base font-semibold mt-4 mb-2 text-blue-600 dark:text-blue-400">$1</h3>')
+      .replace(/^## (.*$)/gim, '<h2 class="text-lg font-bold mt-4 mb-2 text-blue-700 dark:text-blue-300">$1</h2>')
+      .replace(/^# (.*$)/gim, '<h1 class="text-xl font-bold mt-4 mb-3 text-blue-800 dark:text-blue-200">$1</h1>')
+      // Bold text
+      .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
+      .replace(/__(.*?)__/g, '<strong class="font-semibold text-gray-900 dark:text-gray-100">$1</strong>')
+      // Italic text
+      .replace(/\*(.*?)\*/g, '<em class="italic text-gray-700 dark:text-gray-300">$1</em>')
+      .replace(/_(.*?)_/g, '<em class="italic text-gray-700 dark:text-gray-300">$1</em>')
+      // Lists
+      .replace(/^- (.*$)/gim, '<li class="ml-4 list-disc mb-1">$1</li>')
+      .replace(/^\* (.*$)/gim, '<li class="ml-4 list-disc mb-1">$1</li>')
+      .replace(/^\d+\. (.*$)/gim, '<li class="ml-4 list-decimal mb-1">$1</li>')
+      // Code blocks
+      .replace(/`([^`]+)`/g, '<code class="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded text-sm font-mono text-red-600 dark:text-red-400">$1</code>')
+      // Line breaks and paragraphs
+      .replace(/\n\n/g, '</p><p class="mb-3">')
+      .replace(/\n/g, '<br>')
+      // Wrap in paragraph tags
+      .replace(/^(.*)$/gm, '<p class="mb-3 leading-relaxed">$1</p>')
+      // Clean up empty paragraphs
+      .replace(/<p class="mb-3 leading-relaxed"><\/p>/g, '')
+      // Wrap lists properly
+      .replace(/(<li class="ml-4 list-[^"]+">.*?<\/li>)/gs, '<ul class="mb-3 space-y-1">$1</ul>');
+  };
+
+  // Markdown formatting for PDF (plain text with enhanced formatting)
+  const formatMarkdownForPDF = (text: string) => {
+    if (!text) return '';
+    return text
+      // Convert headers to uppercase with spacing
+      .replace(/^### (.*$)/gim, '\n\n$1\n' + '─'.repeat(20))
+      .replace(/^## (.*$)/gim, '\n\n$1\n' + '═'.repeat(25))
+      .replace(/^# (.*$)/gim, '\n\n$1\n' + '█'.repeat(30))
+      // Convert bold to uppercase
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/__(.*?)__/g, '$1')
+      // Remove italic markers but keep text
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/_(.*?)_/g, '$1')
+      // Convert lists to proper indentation
+      .replace(/^- (.*$)/gim, '  • $1')
+      .replace(/^\* (.*$)/gim, '  • $1')
+      .replace(/^\d+\. (.*$)/gim, '  $&')
+      // Remove code block markers
+      .replace(/`([^`]+)`/g, '$1')
+      // Clean up extra line breaks
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
 
   // Define captureImage function before using it in useAutoCapture
   const captureImage = () => {
@@ -916,7 +973,9 @@ const CameraAIApp: React.FC = () => {
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(40, 40, 40);
         
-        const lines = pdf.splitTextToSize(capture.description, contentWidth);
+        // Apply markdown formatting for PDF
+        const formattedDescription = formatMarkdownForPDF(capture.description);
+        const lines = pdf.splitTextToSize(formattedDescription, contentWidth);
         
         for (let i = 0; i < lines.length; i++) {
           if (yPos > pageHeight - 40) {
@@ -1198,9 +1257,12 @@ const CameraAIApp: React.FC = () => {
               AI Description
             </h3>
             <div className="prose prose-invert max-w-none">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {aiDescription}
-              </p>
+              <div 
+                className="text-sm leading-relaxed"
+                dangerouslySetInnerHTML={{ 
+                  __html: formatMarkdown(aiDescription) 
+                }}
+              />
             </div>
           </Card>
         )}
@@ -1232,7 +1294,7 @@ const CameraAIApp: React.FC = () => {
           <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Puter.com
           </a>{' '}
-          | Version 1.0.62 | 2025
+          | Version 1.0.63 | 2025
         </p>
       </footer>
 

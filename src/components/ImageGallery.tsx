@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Volume2, Download, Trash2, FileText, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -26,6 +26,10 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [expandedPreview, setExpandedPreview] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatDescription = (description: string) => {
     // Enhanced markdown-like formatting for better readability
@@ -63,7 +67,18 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   };
 
   const speakDescription = async (description: string) => {
-    if (!description || isSpeaking) return;
+    if (!description) return;
+    
+    if (isSpeaking) {
+      // Stop current audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      setIsSpeaking(false);
+      setAudioProgress(0);
+      return;
+    }
     
     setIsSpeaking(true);
     try {
@@ -72,15 +87,40 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
         engine: "standard",
         language: "en-US"
       });
+      
+      audioRef.current = audio;
       audio.play();
       
-      // Reset speaking state when audio ends
+      // Set duration once metadata is loaded
+      audio.addEventListener('loadedmetadata', () => {
+        setAudioDuration(audio.duration);
+      });
+      
+      // Update progress during playback
+      audio.addEventListener('timeupdate', () => {
+        setAudioProgress(audio.currentTime);
+      });
+      
+      // Reset when audio ends
       audio.addEventListener('ended', () => {
         setIsSpeaking(false);
+        setAudioProgress(0);
+        setAudioDuration(0);
+        audioRef.current = null;
+      });
+      
+      // Handle errors
+      audio.addEventListener('error', () => {
+        setIsSpeaking(false);
+        setAudioProgress(0);
+        setAudioDuration(0);
+        audioRef.current = null;
       });
     } catch (error) {
       console.error('TTS error:', error);
       setIsSpeaking(false);
+      setAudioProgress(0);
+      setAudioDuration(0);
     }
   };
 
@@ -281,29 +321,39 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                         __html: formatDescription(image.description).substring(0, 150) + '...' 
                       }}
                     />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => speakDescription(image.description!)}
-                        disabled={isSpeaking}
-                        className="h-6 px-2 text-xs"
-                        title="Listen to description"
-                      >
-                        <Volume2 className="h-3 w-3 mr-1" />
-                        {isSpeaking ? 'Speaking...' : 'Listen'}
-                      </Button>
-                      {onExportImage && (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => onExportImage(image, image.description!)}
+                          onClick={() => speakDescription(image.description!)}
                           className="h-6 px-2 text-xs"
-                          title="Export image and description as PDF"
+                          title={isSpeaking ? "Stop audio" : "Listen to description"}
                         >
-                          <Download className="h-3 w-3 mr-1" />
-                          Export
+                          <Volume2 className="h-3 w-3 mr-1" />
+                          {isSpeaking ? 'Stop' : 'Listen'}
                         </Button>
+                        {onExportImage && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onExportImage(image, image.description!)}
+                            className="h-6 px-2 text-xs"
+                            title="Export image and description as PDF"
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Export
+                          </Button>
+                        )}
+                      </div>
+                      {/* Audio Progress Bar */}
+                      {isSpeaking && audioDuration > 0 && (
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-100" 
+                            style={{ width: `${(audioProgress / audioDuration) * 100}%` }}
+                          />
+                        </div>
                       )}
                     </div>
                   </div>
