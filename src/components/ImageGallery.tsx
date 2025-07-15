@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Volume2 } from 'lucide-react';
+import { X, Volume2, Download, Trash2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
@@ -16,11 +16,16 @@ interface CapturedImage {
 
 interface ImageGalleryProps {
   images: CapturedImage[];
+  onExportImage?: (image: CapturedImage, description: string) => void;
+  onDeleteImages?: (images: CapturedImage[]) => void;
+  onExportMultiple?: (captures: { image: CapturedImage, description: string }[]) => void;
 }
 
-export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
+export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImage, onDeleteImages, onExportMultiple }) => {
   const [selectedImage, setSelectedImage] = useState<CapturedImage | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const formatDescription = (description: string) => {
     // Add proper formatting for better readability
@@ -54,23 +59,170 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
     }
   };
 
+  const toggleImageSelection = (index: number, event: React.MouseEvent) => {
+    event.stopPropagation();
+    const newSelected = new Set(selectedImages);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedImages(newSelected);
+    
+    // Auto-enable selection mode when selecting images
+    if (newSelected.size > 0 && !isSelectionMode) {
+      setIsSelectionMode(true);
+    }
+    
+    // Auto-disable selection mode when no images selected
+    if (newSelected.size === 0) {
+      setIsSelectionMode(false);
+    }
+  };
+
+  const handleDeleteSelected = () => {
+    if (selectedImages.size === 0 || !onDeleteImages) return;
+    
+    const imagesToDelete = Array.from(selectedImages).map(index => images[index]);
+    onDeleteImages(imagesToDelete);
+    setSelectedImages(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const handleExportSelected = () => {
+    if (selectedImages.size === 0 || !onExportMultiple) return;
+    
+    const captures = Array.from(selectedImages)
+      .map(index => images[index])
+      .filter(image => image.description) // Only export images with descriptions
+      .map(image => ({ image, description: image.description! }));
+    
+    if (captures.length === 0) {
+      // Show toast or alert that no images with descriptions are selected
+      return;
+    }
+    
+    onExportMultiple(captures);
+    setSelectedImages(new Set());
+    setIsSelectionMode(false);
+  };
+
+  const selectAll = () => {
+    const allIndices = images.map((_, index) => index);
+    setSelectedImages(new Set(allIndices));
+    setIsSelectionMode(true);
+  };
+
+  const clearSelection = () => {
+    setSelectedImages(new Set());
+    setIsSelectionMode(false);
+  };
+
   if (images.length === 0) return null;
 
   return (
     <>
       <Card className="p-4">
-        <h3 className="text-sm font-medium text-muted-foreground mb-3">
-          Captured Images ({images.length})
-        </h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-muted-foreground">
+            Captured Images ({images.length})
+            {selectedImages.size > 0 && ` • ${selectedImages.size} selected`}
+          </h3>
+          <div className="flex gap-2">
+            {!isSelectionMode ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsSelectionMode(true)}
+                className="h-7 px-2 text-xs"
+                title="Enable selection mode"
+              >
+                Select
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={selectAll}
+                  className="h-7 px-2 text-xs"
+                  title="Select all images"
+                >
+                  All
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelection}
+                  className="h-7 px-2 text-xs"
+                  title="Clear selection"
+                >
+                  Clear
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Selection Action Buttons */}
+        {selectedImages.size > 0 && (
+          <div className="flex gap-2 mb-4 p-3 bg-primary/10 rounded-lg border border-primary/20">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteSelected}
+              className="h-8 px-3 text-xs"
+              title={`Delete ${selectedImages.size} selected image${selectedImages.size > 1 ? 's' : ''}`}
+            >
+              <Trash2 className="h-3 w-3 mr-1" />
+              Delete Selected ({selectedImages.size})
+            </Button>
+            {Array.from(selectedImages).some(index => images[index].description) && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleExportSelected}
+                className="h-8 px-3 text-xs"
+                title="Export selected images with descriptions as PDF"
+              >
+                <FileText className="h-3 w-3 mr-1" />
+                Export All ({Array.from(selectedImages).filter(index => images[index].description).length})
+              </Button>
+            )}
+          </div>
+        )}
+        
         <div className="space-y-4 max-h-96 overflow-y-auto scrollbar-hide">
           {images.map((image, index) => (
-            <div key={image.timestamp.getTime()} className="flex gap-3 p-3 rounded-lg bg-muted/20 border">
-              <img
-                src={image.dataUrl}
-                alt={`Capture ${index + 1}`}
-                className="w-16 h-16 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
-                onClick={() => setSelectedImage(image)}
-              />
+            <div 
+              key={image.timestamp.getTime()} 
+              className={`flex gap-3 p-3 rounded-lg border transition-all ${
+                selectedImages.has(index) 
+                  ? 'bg-primary/20 border-primary/50' 
+                  : 'bg-muted/20 border-border'
+              }`}
+            >
+              <div className="relative">
+                <img
+                  src={image.dataUrl}
+                  alt={`Capture ${index + 1}`}
+                  className="w-16 h-16 object-cover rounded-lg border cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setSelectedImage(image)}
+                />
+                {/* Selection checkbox */}
+                {isSelectionMode && (
+                  <div 
+                    className="absolute -top-2 -right-2 w-6 h-6 rounded-full border-2 border-white bg-background cursor-pointer flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                    onClick={(e) => toggleImageSelection(index, e)}
+                  >
+                    {selectedImages.has(index) ? (
+                      <div className="w-3 h-3 rounded-full bg-primary"></div>
+                    ) : (
+                      <div className="w-3 h-3 rounded-full border border-muted-foreground"></div>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-sm font-medium">
@@ -88,17 +240,31 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images }) => {
                         __html: formatDescription(image.description).substring(0, 150) + '...' 
                       }}
                     />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => speakDescription(image.description!)}
-                      disabled={isSpeaking}
-                      className="h-6 px-2 text-xs"
-                      title="Listen to description"
-                    >
-                      <Volume2 className="h-3 w-3 mr-1" />
-                      {isSpeaking ? 'Speaking...' : 'Listen'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => speakDescription(image.description!)}
+                        disabled={isSpeaking}
+                        className="h-6 px-2 text-xs"
+                        title="Listen to description"
+                      >
+                        <Volume2 className="h-3 w-3 mr-1" />
+                        {isSpeaking ? 'Speaking...' : 'Listen'}
+                      </Button>
+                      {onExportImage && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => onExportImage(image, image.description!)}
+                          className="h-6 px-2 text-xs"
+                          title="Export image and description as PDF"
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Export
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <p className="text-xs text-yellow-600">⏳ Processing...</p>

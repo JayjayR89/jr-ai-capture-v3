@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader } from 'lucide-react';
+import { Camera, CameraOff, Circle, Sparkles, Home, Settings, LogIn, LogOut, User, Loader, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
@@ -8,6 +8,7 @@ import { CameraPreview } from './CameraPreview';
 import { AutoCaptureProgress } from './AutoCaptureProgress';
 import { ImageGallery } from './ImageGallery';
 import { useAutoCapture } from '@/hooks/useAutoCapture';
+import jsPDF from 'jspdf';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -32,6 +33,9 @@ interface Settings {
   captureQuality: 'high' | 'medium' | 'low';
   completeAlert: boolean;
   tooltips: boolean;
+  previewMinWidth: number;
+  previewMinHeight: number;
+  maintainAspectRatio: boolean;
 }
 
 const CameraAIApp: React.FC = () => {
@@ -67,12 +71,16 @@ const CameraAIApp: React.FC = () => {
     captureAmount: 5,
     captureQuality: 'high',
     completeAlert: true,
-    tooltips: true
+    tooltips: true,
+    previewMinWidth: 400,
+    previewMinHeight: 225,
+    maintainAspectRatio: true
   });
 
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [isSecureContext, setIsSecureContext] = useState(true);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -178,7 +186,17 @@ const CameraAIApp: React.FC = () => {
     loadSettings();
     checkAvailableCameras();
     checkAuthStatus();
+    checkSecureContext();
   }, []);
+
+  const checkSecureContext = () => {
+    // Check if we're in a secure context (HTTPS or localhost)
+    const isSecure = window.isSecureContext || 
+                    location.protocol === 'https:' || 
+                    location.hostname === 'localhost' || 
+                    location.hostname === '127.0.0.1';
+    setIsSecureContext(isSecure);
+  };
 
   // Process AI queue
   useEffect(() => {
@@ -310,12 +328,20 @@ const CameraAIApp: React.FC = () => {
 
   const checkAvailableCameras = async () => {
     try {
+      // Check if mediaDevices is available (requires HTTPS or localhost)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        console.warn('MediaDevices API not available - requires HTTPS or localhost');
+        setAvailableCameras([]);
+        return;
+      }
+      
       const devices = await navigator.mediaDevices.enumerateDevices();
       const cameras = devices.filter(device => device.kind === 'videoinput');
       setAvailableCameras(cameras);
       console.log('Available cameras:', cameras.length);
     } catch (error) {
       console.error('Error enumerating cameras:', error);
+      setAvailableCameras([]);
     }
   };
 
@@ -364,6 +390,11 @@ const CameraAIApp: React.FC = () => {
     setVideoLoaded(false);
     
     try {
+      // Check if mediaDevices is available (requires HTTPS or localhost)
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera access requires HTTPS or localhost. Please access the app via HTTPS or localhost.');
+      }
+      
       console.log('Requesting camera permission with facing mode:', facingMode);
       
       const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -532,6 +563,266 @@ const CameraAIApp: React.FC = () => {
     return isCapturing ? 'Capturing...' : 'Capture';
   };
 
+  const exportCapture = async (image: CapturedImage, description: string) => {
+    try {
+      await createModernPDF([{ image, description }], false);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Unable to export PDF",
+        variant: "destructive",
+        duration: 3000
+      });
+    }
+  };
+
+  const exportMultipleCaptures = async (images: { image: CapturedImage, description: string }[]) => {
+    try {
+      await createModernPDF(images, true);
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Export failed",
+        description: "Unable to export multiple captures",
+        variant: "destructive",
+        duration: 3000
+      });
+    }
+  };
+
+  const deleteImages = (imagesToDelete: CapturedImage[]) => {
+    const timestampsToDelete = new Set(imagesToDelete.map(img => img.timestamp.getTime()));
+    
+    // Remove from captured images
+    setCapturedImages(prev => prev.filter(img => !timestampsToDelete.has(img.timestamp.getTime())));
+    
+    // Remove from AI queue if present
+    setAiQueue(prev => prev.filter(img => !timestampsToDelete.has(img.timestamp.getTime())));
+    
+    // Clear last capture if it's being deleted
+    if (lastCapture && timestampsToDelete.has(lastCapture.timestamp.getTime())) {
+      setLastCapture(null);
+      setAiDescription('');
+    }
+    
+    toast({
+      title: "Images deleted",
+      description: `${imagesToDelete.length} image${imagesToDelete.length > 1 ? 's' : ''} deleted successfully`,
+      duration: 3000
+    });
+  };
+
+  const createModernPDF = async (captures: { image: CapturedImage, description: string }[], isMultiple: boolean) => {
+    const pdf = new jsPDF();
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    
+    // Modern color scheme
+    const primaryColor = [59, 130, 246]; // Blue
+    const secondaryColor = [107, 114, 128]; // Gray
+    const accentColor = [16, 185, 129]; // Green
+    
+    // Header function
+    const addHeader = (pageNum: number, totalPages: number) => {
+      // Header background
+      pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      pdf.rect(0, 0, pageWidth, 40, 'F');
+      
+      // Title
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Live AI Camera Export', margin, 25);
+      
+      // Page number
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Page ${pageNum} of ${totalPages}`, pageWidth - margin - 30, 25);
+      
+      // Reset text color
+      pdf.setTextColor(0, 0, 0);
+    };
+    
+    // Footer function
+    const addFooter = () => {
+      const footerY = pageHeight - 15;
+      pdf.setFontSize(8);
+      pdf.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+      pdf.text(`Generated: ${new Date().toLocaleString()}`, margin, footerY);
+      if (user) {
+        pdf.text(`User: ${user.username}`, pageWidth - margin - 50, footerY);
+      }
+      pdf.text('Created with Live AI Camera', pageWidth / 2 - 30, footerY);
+    };
+    
+    let currentPage = 1;
+    const totalPages = captures.length + (isMultiple ? 1 : 0); // +1 for summary page if multiple
+    
+    // Add summary page for multiple captures
+    if (isMultiple) {
+      addHeader(currentPage, totalPages);
+      
+      let yPos = 60;
+      
+      // Summary title
+      pdf.setFontSize(18);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      pdf.text('Export Summary', margin, yPos);
+      yPos += 20;
+      
+      // Summary info
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`Total Captures: ${captures.length}`, margin, yPos);
+      yPos += 10;
+      pdf.text(`Export Date: ${new Date().toLocaleDateString()}`, margin, yPos);
+      yPos += 10;
+      pdf.text(`Export Time: ${new Date().toLocaleTimeString()}`, margin, yPos);
+      yPos += 30;
+      
+      // Capture list
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Captures in this Export:', margin, yPos);
+      yPos += 15;
+      
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      captures.forEach((capture, index) => {
+        if (yPos > pageHeight - 50) {
+          pdf.addPage();
+          currentPage++;
+          addHeader(currentPage, totalPages);
+          yPos = 60;
+        }
+        
+        pdf.text(`${index + 1}. Captured: ${capture.image.timestamp.toLocaleString()}`, margin + 10, yPos);
+        yPos += 8;
+        if (capture.description) {
+          const shortDesc = capture.description.substring(0, 80) + (capture.description.length > 80 ? '...' : '');
+          pdf.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+          pdf.text(`   ${shortDesc}`, margin + 15, yPos);
+          pdf.setTextColor(0, 0, 0);
+          yPos += 12;
+        }
+      });
+      
+      addFooter();
+      
+      if (captures.length > 0) {
+        pdf.addPage();
+        currentPage++;
+      }
+    }
+    
+    // Add individual capture pages
+    captures.forEach((capture, index) => {
+      if (index > 0) {
+        pdf.addPage();
+        currentPage++;
+      }
+      
+      addHeader(currentPage, totalPages);
+      
+      let yPos = 60;
+      
+      // Capture title
+      pdf.setFontSize(16);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      pdf.text(`Capture ${index + 1}${isMultiple ? ` of ${captures.length}` : ''}`, margin, yPos);
+      yPos += 20;
+      
+      // Timestamp with accent color
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(accentColor[0], accentColor[1], accentColor[2]);
+      pdf.text(`📅 ${capture.image.timestamp.toLocaleString()}`, margin, yPos);
+      yPos += 20;
+      
+      // Image section
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('📸 Captured Image', margin, yPos);
+      yPos += 15;
+      
+      // Calculate image dimensions to fit properly
+      const maxImgWidth = contentWidth * 0.8;
+      const maxImgHeight = 120;
+      
+      try {
+        pdf.addImage(capture.image.dataUrl, 'JPEG', margin, yPos, maxImgWidth, maxImgHeight);
+        yPos += maxImgHeight + 20;
+      } catch (imgError) {
+        console.error('Error adding image to PDF:', imgError);
+        pdf.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
+        pdf.text('Image could not be embedded', margin, yPos);
+        yPos += 20;
+      }
+      
+      // AI Description section
+      if (capture.description) {
+        // Check if we need a new page for description
+        if (yPos > pageHeight - 100) {
+          pdf.addPage();
+          currentPage++;
+          addHeader(currentPage, totalPages);
+          yPos = 60;
+        }
+        
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFontSize(12);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('🤖 AI Description', margin, yPos);
+        yPos += 15;
+        
+        // Format and add description with proper page breaks
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(40, 40, 40);
+        
+        const lines = pdf.splitTextToSize(capture.description, contentWidth);
+        
+        for (let i = 0; i < lines.length; i++) {
+          if (yPos > pageHeight - 40) {
+            addFooter();
+            pdf.addPage();
+            currentPage++;
+            addHeader(currentPage, totalPages);
+            yPos = 60;
+          }
+          
+          pdf.text(lines[i], margin, yPos);
+          yPos += 6;
+        }
+      }
+      
+      addFooter();
+    });
+    
+    // Generate filename
+    const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
+    const username = user?.username || 'user';
+    const filename = isMultiple 
+      ? `LiveAI-Multi-${captures.length}captures-${timestamp}-${username}.pdf`
+      : `LiveAI-${timestamp}-${username}.pdf`;
+    
+    // Download PDF
+    pdf.save(filename);
+    
+    toast({
+      title: "PDF exported successfully",
+      description: `Downloaded as ${filename}`,
+      duration: 3000
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-dark text-foreground">
       {/* Flash overlay */}
@@ -597,6 +888,33 @@ const CameraAIApp: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 p-4 space-y-6">
+        {/* Security Warning Banner */}
+        {!isSecureContext && (
+          <Card className="p-4 bg-yellow-500/10 border-yellow-500/20">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center mt-0.5">
+                <span className="text-yellow-600 text-sm">⚠️</span>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-yellow-600 mb-2">
+                  Camera Access Requires HTTPS
+                </h3>
+                <p className="text-xs text-yellow-600/80 leading-relaxed">
+                  For security reasons, camera access is only available over HTTPS or localhost. 
+                  To use the camera on your mobile device, please:
+                </p>
+                <ul className="text-xs text-yellow-600/80 mt-2 ml-4 space-y-1">
+                  <li>• Access the app via HTTPS (secure connection)</li>
+                  <li>• Or use localhost if testing locally</li>
+                  <li>• Network URLs (HTTP) don't support camera access</li>
+                </ul>
+                <p className="text-xs text-yellow-600/80 mt-2">
+                  You can still view previously captured images and use other features.
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
         {/* Camera Preview */}
         {(isCameraOn || isCameraLoading) && (
           <CameraPreview
@@ -608,6 +926,9 @@ const CameraAIApp: React.FC = () => {
             videoLoaded={videoLoaded}
             availableCameras={availableCameras}
             showFlipButton={true}
+            previewMinWidth={settings.previewMinWidth}
+            previewMinHeight={settings.previewMinHeight}
+            maintainAspectRatio={settings.maintainAspectRatio}
           />
         )}
 
@@ -686,7 +1007,12 @@ const CameraAIApp: React.FC = () => {
 
         {/* Image Gallery */}
         {capturedImages.length > 0 && (
-          <ImageGallery images={capturedImages} />
+          <ImageGallery 
+            images={capturedImages} 
+            onExportImage={exportCapture}
+            onDeleteImages={deleteImages}
+            onExportMultiple={exportMultipleCaptures}
+          />
         )}
 
         {/* Last Capture Thumbnail (for single capture mode) */}
@@ -717,6 +1043,19 @@ const CameraAIApp: React.FC = () => {
                   <p className="text-xs text-yellow-600 mt-1">
                     ⏳ Queued for AI description
                   </p>
+                )}
+                {/* Export Button - Show after Describe has been pressed */}
+                {aiDescription && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportCapture(lastCapture, aiDescription)}
+                    className="mt-2 h-7 px-3 text-xs"
+                    title="Export image and description as PDF"
+                  >
+                    <Download className="h-3 w-3 mr-1" />
+                    Export PDF
+                  </Button>
                 )}
               </div>
             </div>

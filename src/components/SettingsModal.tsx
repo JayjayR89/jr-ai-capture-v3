@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -30,6 +31,9 @@ interface Settings {
   captureQuality: 'high' | 'medium' | 'low';
   completeAlert: boolean;
   tooltips: boolean;
+  previewMinWidth: number;
+  previewMinHeight: number;
+  maintainAspectRatio: boolean;
 }
 
 interface SettingsModalProps {
@@ -50,7 +54,10 @@ const defaultSettings: Settings = {
   captureAmount: 5,
   captureQuality: 'high',
   completeAlert: true,
-  tooltips: true
+  tooltips: true,
+  previewMinWidth: 400,
+  previewMinHeight: 225,
+  maintainAspectRatio: true
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -453,6 +460,89 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <Image className="h-4 w-4" />
                 {isExporting ? 'Exporting...' : 'Image'}
               </Button>
+            </div>
+          </Card>
+
+          {/* Live Preview Min Size */}
+          <Card className="p-4">
+            <h3 className="font-medium mb-3 flex items-center gap-2">
+              <Image className="h-4 w-4" />
+              Live Preview Min Size
+            </h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="maintainAspectRatio">Maintain aspect ratio</Label>
+                <Switch
+                  id="maintainAspectRatio"
+                  checked={tempSettings.maintainAspectRatio}
+                  onCheckedChange={(checked) => {
+                    setTempSettings(prev => {
+                      if (checked) {
+                        // Auto-calculate height based on 16:9 aspect ratio
+                        const aspectHeight = Math.round((prev.previewMinWidth * 9) / 16);
+                        return { 
+                          ...prev, 
+                          maintainAspectRatio: checked,
+                          previewMinHeight: aspectHeight
+                        };
+                      }
+                      return { ...prev, maintainAspectRatio: checked };
+                    });
+                  }}
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="previewWidth">Width (px)</Label>
+                  <Input
+                    id="previewWidth"
+                    type="number"
+                    min="200"
+                    max="1200"
+                    value={tempSettings.previewMinWidth}
+                    onChange={(e) => {
+                      const width = parseInt(e.target.value) || 400;
+                      setTempSettings(prev => {
+                        if (prev.maintainAspectRatio) {
+                          // Auto-calculate height based on 16:9 aspect ratio
+                          const aspectHeight = Math.round((width * 9) / 16);
+                          return { 
+                            ...prev, 
+                            previewMinWidth: width,
+                            previewMinHeight: aspectHeight
+                          };
+                        }
+                        return { ...prev, previewMinWidth: width };
+                      });
+                    }}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="previewHeight">Height (px)</Label>
+                  <Input
+                    id="previewHeight"
+                    type="number"
+                    min="150"
+                    max="800"
+                    value={tempSettings.previewMinHeight}
+                    disabled={tempSettings.maintainAspectRatio}
+                    onChange={(e) => {
+                      const height = parseInt(e.target.value) || 225;
+                      setTempSettings(prev => ({ 
+                        ...prev, 
+                        previewMinHeight: height 
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Set the minimum size for the camera preview when minimized. 
+                {tempSettings.maintainAspectRatio && " Height is auto-calculated to maintain 16:9 aspect ratio."}
+              </p>
             </div>
           </Card>
 

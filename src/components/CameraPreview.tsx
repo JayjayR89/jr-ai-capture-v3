@@ -13,6 +13,9 @@ interface CameraPreviewProps {
   videoLoaded: boolean;
   availableCameras: MediaDeviceInfo[];
   showFlipButton?: boolean;
+  previewMinWidth?: number;
+  previewMinHeight?: number;
+  maintainAspectRatio?: boolean;
 }
 
 export const CameraPreview: React.FC<CameraPreviewProps> = ({
@@ -23,12 +26,36 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   isCameraLoading,
   videoLoaded,
   availableCameras,
-  showFlipButton = true
+  showFlipButton = true,
+  previewMinWidth = 400,
+  previewMinHeight = 225,
+  maintainAspectRatio = true
 }) => {
+  const getMinimizedStyle = () => {
+    if (!isMinimized) return {};
+    
+    if (maintainAspectRatio) {
+      // Calculate height based on 16:9 aspect ratio
+      const aspectHeight = (previewMinWidth * 9) / 16;
+      return {
+        width: `${previewMinWidth}px`,
+        height: `${aspectHeight}px`
+      };
+    }
+    
+    return {
+      width: `${previewMinWidth}px`,
+      height: `${previewMinHeight}px`
+    };
+  };
+
   return (
-    <Card className={`relative transition-all duration-300 ${
-      isMinimized ? 'w-auto h-[30vh]' : 'w-full'
-    }`}>
+    <Card 
+      className={`relative transition-all duration-300 ${
+        isMinimized ? 'mx-auto' : 'w-full'
+      }`}
+      style={getMinimizedStyle()}
+    >
       <div className={`bg-muted/20 rounded-lg overflow-hidden camera-preview relative ${
         isMinimized ? 'aspect-video h-full' : 'aspect-video'
       }`}>
@@ -63,8 +90,8 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
         </Button>
         
-        {/* Top Right - Flip Camera Button - Always show when camera is ready and multiple cameras available */}
-        {showFlipButton && availableCameras.length > 1 && videoLoaded && !isMinimized && (
+        {/* Top Right - Flip Camera Button - Show when multiple cameras available and camera is ready */}
+        {showFlipButton && availableCameras.length > 1 && videoLoaded && (
           <Button 
             variant="secondary" 
             size="icon" 
