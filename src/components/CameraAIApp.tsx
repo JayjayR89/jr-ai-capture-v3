@@ -300,6 +300,14 @@ const CameraAIApp: React.FC = () => {
     }
   };
 
+  const updateFavicon = (theme: 'light' | 'dark') => {
+    const favicon = document.getElementById('favicon') as HTMLLinkElement;
+    if (favicon) {
+      // Light mode uses dark icon, dark mode uses white icon
+      favicon.href = theme === 'light' ? '/fav-dark.ico' : '/fav-white.ico';
+    }
+  };
+
   const applyTheme = (theme: 'light' | 'dark') => {
     const htmlElement = document.documentElement;
     
@@ -308,6 +316,9 @@ const CameraAIApp: React.FC = () => {
     
     // Add new theme class
     htmlElement.classList.add(theme);
+    
+    // Update favicon based on theme
+    updateFavicon(theme);
     
     console.log('Theme applied:', theme, 'Current classes:', htmlElement.classList.toString());
   };
