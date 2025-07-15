@@ -130,95 +130,138 @@ Be specific and descriptive, but concise.`;
         
         const imageId = addImage(dataUrl);
         
+        // Add to AI queue if authenticated
         if (isAuthenticated) {
           addToAIQueue(dataUrl);
         }
         
-        toast({
-          title: "Image Captured",
-          description: "Screenshot saved successfully",
-          duration: 3000
-        });
-      } catch (error) {
-        console.error('Capture error:', error);
-        toast({
-          title: "Capture failed",
-          description: "Unable to capture image from video",
-          variant: "destructive",
-          duration: 3000
-        });
-      } finally {
         setTimeout(() => setShowFlash(false), 300);
+      } catch (error) {
+        console.error('Auto-capture error:', error);
+        setShowFlash(false);
       }
     }, [isCameraOn, videoLoaded, settings.captureQuality, isAuthenticated, addImage, addToAIQueue]),
     isCameraOn && videoLoaded
   );
 
-  // Apply theme
+  // Load settings on mount
   useEffect(() => {
-    const htmlElement = document.documentElement;
-    htmlElement.classList.remove('light', 'dark');
-    htmlElement.classList.add(settings.theme);
-  }, [settings.theme]);
+    loadSettings();
+    checkAvailableCameras();
+    checkAuthStatus();
+  }, []);
 
-  // Load settings
+  // Process AI queue results
   useEffect(() => {
+    if (aiProcessedCount > 0) {
+      // Update the last processed image with description
+      const lastImage = capturedImages[0];
+      if (lastImage && !lastImage.description) {
+        // The description will be updated via the AI queue callback
+      }
+    }
+  }, [aiProcessedCount, capturedImages]);
+
+  const loadSettings = useCallback(() => {
     try {
       const saved = localStorage.getItem('aiCameraSettings');
       if (saved) {
-        const savedSettings: Settings = JSON.parse(saved);
+        const savedSettings = JSON.parse(saved);
         setSettings(savedSettings);
+        applyTheme(savedSettings.theme);
+      } else {
+        applyTheme(settings.theme);
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      applyTheme(settings.theme);
     }
+  }, [settings.theme]);
+
+  const applyTheme = useCallback((theme: 'light' | 'dark') => {
+    const htmlElement = document.documentElement;
+    htmlElement.classList.remove('light', 'dark');
+    htmlElement.classList.add(theme);
   }, []);
 
-  // Save settings
-  const handleSettingsChange = (newSettings: Settings) => {
+  const handleSettingsChange = useCallback((newSettings: Settings) => {
     setSettings(newSettings);
+    applyTheme(newSettings.theme);
+    
     try {
       localStorage.setItem('aiCameraSettings', JSON.stringify(newSettings));
     } catch (error) {
       console.error('Error saving settings:', error);
     }
-  };
+  }, [applyTheme]);
 
-  // Check authentication
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const isSignedIn = await puter.auth.isSignedIn();
-        if (isSignedIn) {
-          const userInfo = await puter.auth.getUser();
-          setIsAuthenticated(true);
-          setUser({
-            username: userInfo.username,
-            fullName: userInfo.fullName
-          });
-        }
-      } catch (error) {
-        console.log('Auth check failed:', error);
+  const checkAuthStatus = useCallback(async () => {
+    try {
+      const isSignedIn = await puter.auth.isSignedIn();
+      if (isSignedIn) {
+        const userInfo = await puter.auth.getUser();
+        setIsAuthenticated(true);
+        setUser({
+          username: userInfo.username,
+          fullName: userInfo.fullName
+        });
       }
-    };
-    checkAuth();
+    } catch (error) {
+      console.log('Not signed in or error checking auth status:', error);
+    }
   }, []);
 
-  // Check available cameras
-  useEffect(() => {
-    const checkCameras = async () => {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameras = devices.filter(device => device.kind === 'videoinput');
-        setAvailableCameras(cameras);
-      } catch (error) {
-        console.error('Error enumerating cameras:', error);
-      }
-    };
-    checkCameras();
+  const checkAvailableCameras = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const cameras = devices.filter(device => device.kind === 'videoinput');
+      setAvailableCameras(cameras);
+    } catch (error) {
+      console.error('Error enumerating cameras:', error);
+    }
   }, []);
 
-  const requestCameraPermission = async () => {
+  const handleSignIn = useCallback(async () => {
+    try {
+      const result = await puter.auth.signIn();
+      setIsAuthenticated(true);
+      setUser({
+        username: result.username,
+        fullName: result.fullName
+      });
+      toast({
+        title: "Signed in successfully",
+        description: `Welcome, ${result.username}!`,
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Sign in error:', error);
+      toast({
+        title: "Sign in failed",
+        description: "Please try again",
+        variant: "destructive",
+        duration: 3000
+      });
+    }
+  }, []);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await puter.auth.signOut();
+      setIsAuthenticated(false);
+      setUser(null);
+      toast({
+        title: "Signed out successfully",
+        duration: 3000
+      });
+    } catch (error) {
+      console.error('Sign out error:', error);
+      setIsAuthenticated(false);
+      setUser(null);
+    }
+  }, []);
+
+  const requestCameraPermission = useCallback(async () => {
     setIsCameraLoading(true);
     setVideoLoaded(false);
     
@@ -257,12 +300,25 @@ Be specific and descriptive, but concise.`;
           setIsCameraLoading(false);
         };
 
+        const handleError = (error: Event) => {
+          console.error('Video element error:', error);
+          setIsCameraLoading(false);
+          toast({
+            title: "Video error",
+            description: "Problem with video stream",
+            variant: "destructive",
+            duration: 3000
+          });
+        };
+
         video.addEventListener('loadedmetadata', handleLoadedMetadata);
         video.addEventListener('loadeddata', handleLoadedData);
+        video.addEventListener('error', handleError);
         
         return () => {
           video.removeEventListener('loadedmetadata', handleLoadedMetadata);
           video.removeEventListener('loadeddata', handleLoadedData);
+          video.removeEventListener('error', handleError);
         };
       }
       
@@ -291,12 +347,12 @@ Be specific and descriptive, but concise.`;
         title: "Camera Error",
         description: errorMessage,
         variant: "destructive",
-        duration: 5000
+        duration: 3000
       });
     }
-  };
+  }, [facingMode]);
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (stream) {
       stream.getTracks().forEach(track => {
         track.stop();
@@ -311,9 +367,9 @@ Be specific and descriptive, but concise.`;
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  };
+  }, [stream, autoCapture]);
 
-  const flipCamera = async () => {
+  const flipCamera = useCallback(async () => {
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
     setFacingMode(newFacingMode);
     if (isCameraOn) {
@@ -322,55 +378,80 @@ Be specific and descriptive, but concise.`;
         requestCameraPermission();
       }, 500);
     }
-  };
+  }, [facingMode, isCameraOn, stopCamera, requestCameraPermission]);
 
-  const handleSignIn = async () => {
-    try {
-      const result = await puter.auth.signIn();
-      setIsAuthenticated(true);
-      setUser({
-        username: result.username,
-        fullName: result.fullName
-      });
+  const manualCapture = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || !isCameraOn) {
       toast({
-        title: "Signed in successfully",
-        description: `Welcome, ${result.username}!`,
-        duration: 3000
-      });
-    } catch (error) {
-      console.error('Sign in error:', error);
-      toast({
-        title: "Sign in failed",
-        description: "Please try again",
+        title: "Camera not ready",
+        description: "Please ensure camera is on",
         variant: "destructive",
         duration: 3000
       });
+      return;
     }
-  };
 
-  const handleSignOut = async () => {
-    try {
-      await puter.auth.signOut();
-      setIsAuthenticated(false);
-      setUser(null);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) {
       toast({
-        title: "Signed out successfully",
+        title: "Video not ready",
+        description: "Please wait for camera to fully load",
+        variant: "destructive",
+        duration: 3000
+      });
+      return;
+    }
+
+    setShowFlash(true);
+
+    try {
+      const context = canvas.getContext('2d');
+      if (!context) return;
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const quality = settings.captureQuality === 'high' ? 0.9 : 
+                     settings.captureQuality === 'medium' ? 0.7 : 0.5;
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      
+      const imageId = addImage(dataUrl);
+      
+      // Add to AI queue if authenticated
+      if (isAuthenticated) {
+        addToAIQueue(dataUrl);
+      }
+      
+      setTimeout(() => setShowFlash(false), 300);
+      
+      toast({
+        title: "Image Captured",
+        description: "Screenshot saved successfully",
         duration: 3000
       });
     } catch (error) {
-      console.error('Sign out error:', error);
-      setIsAuthenticated(false);
-      setUser(null);
+      console.error('Capture error:', error);
+      toast({
+        title: "Capture failed",
+        description: "Unable to capture image from video",
+        variant: "destructive",
+        duration: 3000
+      });
+      setShowFlash(false);
     }
-  };
+  }, [isCameraOn, videoLoaded, settings.captureQuality, isAuthenticated, addImage, addToAIQueue]);
 
-  const handleAutoCaptureToggle = () => {
+  const handleAutoCaptureToggle = useCallback(() => {
     if (autoCapture.isActive) {
       autoCapture.stopAutoCapture();
     } else {
       autoCapture.startAutoCapture();
     }
-  };
+  }, [autoCapture]);
 
   const getCaptureButtonText = useMemo(() => {
     if (settings.autoCapture) {
@@ -381,17 +462,6 @@ Be specific and descriptive, but concise.`;
     }
     return 'Capture';
   }, [settings.autoCapture, autoCapture.isActive, autoCapture.currentCount, settings.captureAmount]);
-
-  // Cleanup
-  useEffect(() => {
-    return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => {
-          track.stop();
-        });
-      }
-    };
-  }, [stream]);
 
   return (
     <div className="min-h-screen bg-gradient-dark text-foreground">
@@ -512,52 +582,7 @@ Be specific and descriptive, but concise.`;
         {/* Capture Controls */}
         <div className="grid grid-cols-2 gap-4">
           <Button 
-            onClick={settings.autoCapture ? handleAutoCaptureToggle : () => {
-              if (!videoRef.current || !canvasRef.current || !isCameraOn) return;
-
-              const video = videoRef.current;
-              const canvas = canvasRef.current;
-
-              if (!videoLoaded || video.videoWidth === 0 || video.videoHeight === 0) return;
-
-              setShowFlash(true);
-
-              try {
-                const context = canvas.getContext('2d');
-                if (!context) return;
-
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const quality = settings.captureQuality === 'high' ? 0.9 : 
-                               settings.captureQuality === 'medium' ? 0.7 : 0.5;
-                const dataUrl = canvas.toDataURL('image/jpeg', quality);
-                
-                const imageId = addImage(dataUrl);
-                
-                if (isAuthenticated) {
-                  addToAIQueue(dataUrl);
-                }
-                
-                toast({
-                  title: "Image Captured",
-                  description: "Screenshot saved successfully",
-                  duration: 3000
-                });
-              } catch (error) {
-                console.error('Capture error:', error);
-                toast({
-                  title: "Capture failed",
-                  description: "Unable to capture image from video",
-                  variant: "destructive",
-                  duration: 3000
-                });
-              } finally {
-                setTimeout(() => setShowFlash(false), 300);
-              }
-            }} 
+            onClick={settings.autoCapture ? handleAutoCaptureToggle : manualCapture} 
             disabled={!isCameraOn || !videoLoaded || isCameraLoading} 
             className="h-12 capture-button gradient-primary"
             title={settings.tooltips ? (settings.autoCapture 
@@ -642,7 +667,6 @@ Be specific and descriptive, but concise.`;
         lastCapture={capturedImages[0] || null}
         aiDescription={capturedImages[0]?.description || ''}
         onSettingsChange={handleSettingsChange}
-        isPuterAvailable={true}
       />
     </div>
   );

@@ -165,12 +165,9 @@ function toast({ ...props }: Toast) {
 
   // Auto-dismiss after the specified duration
   if (duration > 0) {
-    const timeout = setTimeout(() => {
+    setTimeout(() => {
       dismiss()
     }, duration)
-    
-    // Store timeout for cleanup
-    toastTimeouts.set(id, timeout)
   }
 
   return {
@@ -190,12 +187,6 @@ function useToast() {
       if (index > -1) {
         listeners.splice(index, 1)
       }
-      
-      // Cleanup all toast timeouts on unmount
-      toastTimeouts.forEach((timeout) => {
-        clearTimeout(timeout)
-      })
-      toastTimeouts.clear()
     }
   }, [state])
 

@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "clickup": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@taazkareem/clickup-mcp-server@0.8.4",
+        "--hash",
+        "sha512:TuWPCubHFrRNbghj34th+QFdOqwGljs0QP55s+d73JhsFVoKaXFuS4c5bHat8qwV9UyF6hAeX87UP0SmeH/QRg=="
+      ],
+      "env": {
+        "CLICKUP_API_KEY": "pk_150294489_DT2AINKCI4I28QSLT78R9GT6NS6FFBC4",
+        "CLICKUP_TEAM_ID": "90131994446",
+        "DOCUMENT_SUPPORT": ""
+      }
+    }
+  }
+}
