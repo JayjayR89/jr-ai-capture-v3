@@ -42,6 +42,11 @@ interface Settings {
   pdfIncludeUserInfo: boolean;
   pdfImageSize: 'small' | 'medium' | 'large';
   pdfPageOrientation: 'portrait' | 'landscape';
+  customAiPrompt: string;
+  aiPersonAnalysis: boolean;
+  aiSceneryAnalysis: boolean;
+  aiObjectAnalysis: boolean;
+  aiRandomAnalysis: boolean;
 }
 
 const CameraAIApp: React.FC = () => {
@@ -86,7 +91,12 @@ const CameraAIApp: React.FC = () => {
     pdfIncludeTimestamp: true,
     pdfIncludeUserInfo: true,
     pdfImageSize: 'medium',
-    pdfPageOrientation: 'portrait'
+    pdfPageOrientation: 'portrait',
+    customAiPrompt: 'Analyze this image in detail and provide a comprehensive description.',
+    aiPersonAnalysis: false,
+    aiSceneryAnalysis: false,
+    aiObjectAnalysis: false,
+    aiRandomAnalysis: false
   });
 
   // UI state
@@ -258,6 +268,58 @@ const CameraAIApp: React.FC = () => {
     }
   };
 
+  const buildAIPrompt = () => {
+    let prompt = settings.customAiPrompt || 'Analyze this image in detail and provide a comprehensive description.';
+    
+    const analysisRequests = [];
+    
+    if (settings.aiPersonAnalysis) {
+      analysisRequests.push(`
+      PERSON ANALYSIS:
+      - Gender identification (if visible)
+      - Approximate age range
+      - Mood/emotional expression
+      - Clothing and appearance details`);
+    }
+    
+    if (settings.aiSceneryAnalysis) {
+      analysisRequests.push(`
+      SCENERY ANALYSIS:
+      - Time of day (day/night/dawn/dusk)
+      - Weather conditions (if determinable)
+      - Location type (City, Rural, Beach, Mountains, River, Park, Inside, Outside, Car, Plane, Boat)
+      - Environmental details and atmosphere`);
+    }
+    
+    if (settings.aiObjectAnalysis) {
+      analysisRequests.push(`
+      OBJECT ANALYSIS:
+      - Name and identify all visible objects
+      - Estimated size/scale of objects
+      - Any readable text in the image
+      - Purpose/uses of identified objects
+      - Interesting facts about notable objects`);
+    }
+    
+    if (settings.aiRandomAnalysis) {
+      analysisRequests.push(`
+      ADDITIONAL DETAILS:
+      - Dominant colors in the image
+      - Rough geographic location (if determinable from context)
+      - Count of visible people
+      - Visible vehicles with make/model (if identifiable)
+      - Any other notable or interesting details`);
+    }
+    
+    if (analysisRequests.length > 0) {
+      prompt += '\n\nPlease also include the following specific analysis:\n' + analysisRequests.join('\n');
+    }
+    
+    prompt += '\n\nFormat the response with clear sections and proper structure for readability.';
+    
+    return prompt;
+  };
+
   const processNextAIRequest = async () => {
     if (aiQueue.length === 0 || processingAI) return;
     
@@ -267,19 +329,7 @@ const CameraAIApp: React.FC = () => {
     try {
       console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
       
-      // Enhanced prompt for better descriptions
-      const enhancedPrompt = `Analyze this image in detail. Please provide a comprehensive description that includes:
-      
-      1. Overall scene description
-      2. Time of day (if determinable from lighting/context)
-      3. Objects, people, animals, or items visible
-      4. Colors, textures, and composition
-      5. Any readable text or signs
-      6. If people are visible, describe general appearance (clothing, activities, etc.)
-      7. Setting/environment details
-      8. Any notable features or points of interest
-      
-      Format the response with clear paragraphs and proper structure for readability.`;
+      const enhancedPrompt = buildAIPrompt();
       
       const response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl);
       
@@ -1115,7 +1165,7 @@ const CameraAIApp: React.FC = () => {
           <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Puter.com
           </a>{' '}
-          | Version 1.0.60 | 2025
+          | Version 1.0.61 | 2025
         </p>
       </footer>
 

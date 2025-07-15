@@ -41,6 +41,11 @@ interface Settings {
   pdfIncludeUserInfo: boolean;
   pdfImageSize: 'small' | 'medium' | 'large';
   pdfPageOrientation: 'portrait' | 'landscape';
+  customAiPrompt: string;
+  aiPersonAnalysis: boolean;
+  aiSceneryAnalysis: boolean;
+  aiObjectAnalysis: boolean;
+  aiRandomAnalysis: boolean;
 }
 
 interface SettingsModalProps {
@@ -70,7 +75,12 @@ const defaultSettings: Settings = {
   pdfIncludeTimestamp: true,
   pdfIncludeUserInfo: true,
   pdfImageSize: 'medium',
-  pdfPageOrientation: 'portrait'
+  pdfPageOrientation: 'portrait',
+  customAiPrompt: 'Analyze this image in detail and provide a comprehensive description.',
+  aiPersonAnalysis: false,
+  aiSceneryAnalysis: false,
+  aiObjectAnalysis: false,
+  aiRandomAnalysis: false
 };
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -546,6 +556,88 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </p>
                   </div>
                 </Card>
+
+                {/* Custom AI Prompt */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">Custom AI Prompt</h3>
+                  <div className="space-y-2">
+                    <Label htmlFor="customAiPrompt">AI description prompt template</Label>
+                    <textarea
+                      id="customAiPrompt"
+                      value={tempSettings.customAiPrompt}
+                      onChange={(e) =>
+                        setTempSettings(prev => ({ ...prev, customAiPrompt: e.target.value }))
+                      }
+                      placeholder="Analyze this image in detail and provide a comprehensive description."
+                      className="w-full h-20 px-3 py-2 text-sm border border-border rounded-md bg-background resize-none"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This prompt will be used as the base instruction for AI image analysis.
+                    </p>
+                  </div>
+                </Card>
+
+                {/* AI Analysis Options */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">AI Analysis Features</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="aiPersonAnalysis">Person Analysis</Label>
+                        <p className="text-xs text-muted-foreground">Gender, Age, Mood detection</p>
+                      </div>
+                      <Switch
+                        id="aiPersonAnalysis"
+                        checked={tempSettings.aiPersonAnalysis}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, aiPersonAnalysis: checked }))
+                        }
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="aiSceneryAnalysis">Scenery Analysis</Label>
+                        <p className="text-xs text-muted-foreground">Day/night, weather, location type</p>
+                      </div>
+                      <Switch
+                        id="aiSceneryAnalysis"
+                        checked={tempSettings.aiSceneryAnalysis}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, aiSceneryAnalysis: checked }))
+                        }
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="aiObjectAnalysis">Object Analysis</Label>
+                        <p className="text-xs text-muted-foreground">Name, size, text, uses, facts</p>
+                      </div>
+                      <Switch
+                        id="aiObjectAnalysis"
+                        checked={tempSettings.aiObjectAnalysis}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, aiObjectAnalysis: checked }))
+                        }
+                      />
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="aiRandomAnalysis">Additional Details</Label>
+                        <p className="text-xs text-muted-foreground">Colors, location, people count, vehicles</p>
+                      </div>
+                      <Switch
+                        id="aiRandomAnalysis"
+                        checked={tempSettings.aiRandomAnalysis}
+                        onCheckedChange={(checked) =>
+                          setTempSettings(prev => ({ ...prev, aiRandomAnalysis: checked }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </Card>
               </div>
             </TabsContent>
 
@@ -640,6 +732,60 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             {/* PDF Tab */}
             <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4">
               <div className="space-y-4">
+                {/* PDF Preview Mockup */}
+                <Card className="p-4">
+                  <h3 className="font-medium mb-3">PDF Preview</h3>
+                  <div className="border rounded-lg p-4 bg-white text-black text-xs" style={{ 
+                    aspectRatio: tempSettings.pdfPageOrientation === 'landscape' ? '4/3' : '3/4',
+                    maxHeight: '300px'
+                  }}>
+                    {/* Header */}
+                    <div 
+                      className="text-white p-2 rounded mb-2 font-bold text-center"
+                      style={{ backgroundColor: tempSettings.pdfHeaderColor }}
+                    >
+                      Live AI Camera Export
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="space-y-2">
+                      {tempSettings.pdfIncludeTimestamp && (
+                        <p><strong>Generated:</strong> {new Date().toLocaleString()}</p>
+                      )}
+                      {tempSettings.pdfIncludeUserInfo && user && (
+                        <p><strong>User:</strong> {user.username}</p>
+                      )}
+                      
+                      <div className="mt-3">
+                        <p className="font-semibold">📸 Captured Image</p>
+                        <div 
+                          className="bg-gray-200 border rounded mt-1 flex items-center justify-center text-gray-500"
+                          style={{ 
+                            height: tempSettings.pdfImageSize === 'large' ? '80px' : 
+                                   tempSettings.pdfImageSize === 'medium' ? '60px' : '40px'
+                          }}
+                        >
+                          [Image Preview]
+                        </div>
+                      </div>
+                      
+                      <div className="mt-3">
+                        <p className="font-semibold">🤖 AI Description</p>
+                        <div className="text-gray-600 text-xs mt-1">
+                          <p>Sample AI description text would appear here...</p>
+                          {tempSettings.aiPersonAnalysis && <p>• Person Analysis: Gender, age, mood details</p>}
+                          {tempSettings.aiSceneryAnalysis && <p>• Scenery Analysis: Location, weather, time of day</p>}
+                          {tempSettings.aiObjectAnalysis && <p>• Object Analysis: Items, text, uses, facts</p>}
+                          {tempSettings.aiRandomAnalysis && <p>• Additional Details: Colors, location, counts</p>}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Live preview of how your PDF export will look with current settings.
+                  </p>
+                </Card>
+
                 {/* PDF Header Color */}
                 <Card className="p-4">
                   <h3 className="font-medium mb-3">Header Color</h3>
