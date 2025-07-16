@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Download, RotateCcw, Palette, Zap, ZapOff, HelpCircle, FileDown, Image, Bot, Monitor, FileText } from 'lucide-react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
+import { Download, RotateCcw, Palette, Zap, ZapOff, HelpCircle, FileDown, Image, Bot, Monitor, FileText, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -21,6 +21,13 @@ interface CapturedImage {
 interface User {
   username: string;
   fullName?: string;
+}
+
+interface TTSVoice {
+  language: string;
+  name: string;
+  engine: 'standard' | 'neural' | 'generative';
+  displayName: string;
 }
 
 interface Settings {
@@ -74,6 +81,8 @@ interface Settings {
   aiRandomLocation: boolean;
   aiRandomPeopleCount: boolean;
   aiRandomVehicles: boolean;
+  ttsEngine: 'standard' | 'neural' | 'generative';
+  ttsVoice: TTSVoice;
 }
 
 interface SettingsModalProps {
@@ -85,6 +94,14 @@ interface SettingsModalProps {
   aiDescription: string;
   onSettingsChange?: (settings: Settings) => void;
 }
+
+const AVAILABLE_VOICES: TTSVoice[] = [
+  { language: 'en-IE', name: 'Niamh', engine: 'neural', displayName: 'Niamh (Irish, Neural)' },
+  { language: 'en-GB', name: 'Amy', engine: 'generative', displayName: 'Amy (British, Generative)' },
+  { language: 'en-GB', name: 'Brian', engine: 'standard', displayName: 'Brian (British, Standard)' },
+  { language: 'en-US', name: 'Mathew', engine: 'generative', displayName: 'Mathew (US, Generative)' },
+  { language: 'en-US', name: 'Joanna', engine: 'neural', displayName: 'Joanna (US, Neural)' }
+];
 
 const defaultSettings: Settings = {
   theme: 'dark',
@@ -136,10 +153,17 @@ const defaultSettings: Settings = {
   aiRandomColors: false,
   aiRandomLocation: false,
   aiRandomPeopleCount: false,
-  aiRandomVehicles: false
+  aiRandomVehicles: false,
+  ttsEngine: 'neural',
+  ttsVoice: {
+    language: 'en-US',
+    name: 'Joanna',
+    engine: 'neural',
+    displayName: 'Joanna (US, Neural)'
+  }
 };
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({
+const SettingsModalInner: React.FC<SettingsModalProps> = ({
   isOpen,
   onClose,
   user,
@@ -172,11 +196,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       const saved = localStorage.getItem('aiCameraSettings');
       if (saved) {
         const savedSettings = JSON.parse(saved);
-        // Ensure theme value is properly typed
+        // Ensure theme value is properly typed and TTS settings have defaults
         const validSettings: Settings = {
           ...defaultSettings,
           ...savedSettings,
-          theme: savedSettings.theme === 'light' ? 'light' : 'dark'
+          theme: savedSettings.theme === 'light' ? 'light' : 'dark',
+          // Ensure TTS settings have proper defaults for backward compatibility
+          ttsEngine: savedSettings.ttsEngine || defaultSettings.ttsEngine,
+          ttsVoice: savedSettings.ttsVoice || defaultSettings.ttsVoice
         };
         setSettings(validSettings);
         setTempSettings(validSettings);
@@ -374,8 +401,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="max-w-lg max-h-[90vh] flex flex-col p-0">
-          <DialogHeader className="p-6 pb-0">
+        <DialogContent className="max-w-lg max-h-[90vh] w-[95vw] sm:w-full flex flex-col p-0">
+          <DialogHeader className="p-6 pb-0 flex-shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Palette className="h-5 w-5" />
               Settings
@@ -404,7 +431,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </TabsList>
 
               {/* AI Tab */}
-              <TabsContent value="ai" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4 max-h-[calc(90vh-200px)]">
+              <TabsContent value="ai" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-8" style={{ maxHeight: 'calc(90vh - 240px)' }}>
+                <div className="pb-4">
                 <div className="space-y-4">
                   {/* Auto-Capture Settings */}
                   <Card className="p-4">
@@ -634,12 +662,81 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </Card>
 
+                  {/* TTS Settings */}
+                  <Card className="p-4">
+                    <h3 className="font-medium mb-3 flex items-center gap-2">
+                      <Volume2 className="h-4 w-4" />
+                      Text-to-Speech
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>TTS Engine</Label>
+                        <Select
+                          value={tempSettings.ttsEngine}
+                          onValueChange={(value: 'standard' | 'neural' | 'generative') =>
+                            setTempSettings(prev => ({ ...prev, ttsEngine: value }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="standard">Standard</SelectItem>
+                            <SelectItem value="neural">Neural</SelectItem>
+                            <SelectItem value="generative">Generative</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Choose the TTS engine quality. Neural and Generative provide more natural speech.
+                        </p>
+                      </div>
 
+                      <div className="space-y-2">
+                        <Label>Voice Selection</Label>
+                        <Select
+                          value={`${tempSettings.ttsVoice.language}-${tempSettings.ttsVoice.name}-${tempSettings.ttsVoice.engine}`}
+                          onValueChange={(value) => {
+                            const selectedVoice = AVAILABLE_VOICES.find(voice => 
+                              `${voice.language}-${voice.name}-${voice.engine}` === value
+                            );
+                            if (selectedVoice) {
+                              setTempSettings(prev => ({ 
+                                ...prev, 
+                                ttsVoice: selectedVoice,
+                                ttsEngine: selectedVoice.engine
+                              }));
+                            }
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {AVAILABLE_VOICES.map((voice) => (
+                              <SelectItem 
+                                key={`${voice.language}-${voice.name}-${voice.engine}`}
+                                value={`${voice.language}-${voice.name}-${voice.engine}`}
+                              >
+                                {voice.displayName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Select a voice and accent. The engine will automatically match your selection.
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+
+
+                </div>
                 </div>
               </TabsContent>
 
               {/* UI Tab */}
-              <TabsContent value="ui" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4 max-h-[calc(90vh-200px)]">
+              <TabsContent value="ui" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-8" style={{ maxHeight: 'calc(90vh - 240px)' }}>
+                <div className="pb-4">
                 <div className="space-y-4">
                   {/* Theme Settings */}
                   <Card className="p-4">
@@ -724,10 +821,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </Button>
                   </Card>
                 </div>
+                </div>
               </TabsContent>
 
               {/* PDF Tab - Enhanced Scrolling */}
-              <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-4 max-h-[calc(90vh-200px)]">
+              <TabsContent value="pdf" className="flex-1 overflow-y-auto scrollbar-hide px-6 pb-8" style={{ maxHeight: 'calc(90vh - 240px)' }}>
+                <div className="pb-4">
                 <div className="space-y-4">
                   {/* Enhanced PDF Preview Mockup */}
                   <Card className="p-4">
@@ -1424,12 +1523,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     </div>
                   </Card>
                 </div>
+                </div>
               </TabsContent>
             </Tabs>
           </div>
 
           {/* Sticky Footer Actions */}
-          <div className="flex gap-2 p-6 pt-4 border-t bg-background">
+          <div className="flex gap-2 p-6 pt-4 border-t bg-background flex-shrink-0">
             <Button variant="outline" onClick={cancelChanges} className="flex-1">
               Cancel
             </Button>
@@ -1559,4 +1659,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     </>
   );
 };
+
+// Wrap with memo for performance optimization
+export const SettingsModal: React.FC<SettingsModalProps> = memo(SettingsModalInner, (prevProps, nextProps) => {
+  // Custom comparison function for memo optimization
+  return (
+    prevProps.isOpen === nextProps.isOpen &&
+    prevProps.user?.username === nextProps.user?.username &&
+    prevProps.lastCapture?.timestamp === nextProps.lastCapture?.timestamp &&
+    prevProps.aiDescription === nextProps.aiDescription &&
+    prevProps.onClose === nextProps.onClose &&
+    prevProps.onSettingsChange === nextProps.onSettingsChange
+  );
+});
+
+// Add display name for debugging
+SettingsModal.displayName = 'SettingsModal';
 

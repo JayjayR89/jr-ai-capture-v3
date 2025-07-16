@@ -8,8 +8,14 @@ import { SettingsModal } from './SettingsModal';
 import { CameraPreview } from './CameraPreview';
 import { AutoCaptureProgress } from './AutoCaptureProgress';
 import { ImageGallery } from './ImageGallery';
+import { TTSSettingsProvider } from '@/contexts/TTSSettingsContext';
+import { TTSControls } from './TTSControls';
 import { useAutoCapture } from '@/hooks/useAutoCapture';
 import jsPDF from 'jspdf';
+import { ErrorBoundary } from './ErrorBoundary';
+import { handleCameraError, handleConfigurationError, errorHandler } from '@/lib/errorHandling';
+import { LoadingIndicator, useLoadingOverlay } from './LoadingIndicator';
+import { cameraManager, configManager } from '@/lib/fallbacks';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -23,6 +29,13 @@ interface CapturedImage {
 interface User {
   username: string;
   fullName?: string;
+}
+
+interface TTSVoice {
+  language: string;
+  name: string;
+  engine: 'standard' | 'neural' | 'generative';
+  displayName: string;
 }
 
 interface Settings {
@@ -76,6 +89,8 @@ interface Settings {
   aiRandomLocation: boolean;
   aiRandomPeopleCount: boolean;
   aiRandomVehicles: boolean;
+  ttsEngine: 'standard' | 'neural' | 'generative';
+  ttsVoice: TTSVoice;
 }
 
 const CameraAIApp: React.FC = () => {
@@ -91,6 +106,7 @@ const CameraAIApp: React.FC = () => {
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const [isFlipping, setIsFlipping] = useState(false);
 
   // Capture state
   const [lastCapture, setLastCapture] = useState<CapturedImage | null>(null);
@@ -153,7 +169,14 @@ const CameraAIApp: React.FC = () => {
     aiRandomColors: false,
     aiRandomLocation: false,
     aiRandomPeopleCount: false,
-    aiRandomVehicles: false
+    aiRandomVehicles: false,
+    ttsEngine: 'neural',
+    ttsVoice: {
+      language: 'en-US',
+      name: 'Joanna',
+      engine: 'neural',
+      displayName: 'Joanna (US, Neural)'
+    }
   });
 
   // UI state
@@ -164,6 +187,31 @@ const CameraAIApp: React.FC = () => {
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  // Fallback TTS function for when configured TTS fails
+  const fallbackTTS = async (text: string) => {
+    try {
+      console.log('Using fallback TTS with standard engine');
+      return await puter.ai.txt2speech(text);
+    } catch (error) {
+      console.error('Fallback TTS also failed:', error);
+      
+      // Provide specific error message based on error type
+      let errorMessage = 'All TTS options failed';
+      if (error instanceof Error) {
+        const errorStr = error.message.toLowerCase();
+        if (errorStr.includes('insufficient') || errorStr.includes('funds') || errorStr.includes('quota')) {
+          errorMessage = 'TTS quota exceeded. Please try again later.';
+        } else if (errorStr.includes('network') || errorStr.includes('connection')) {
+          errorMessage = 'Network error - check your connection and try again.';
+        } else if (errorStr.includes('auth') || errorStr.includes('permission')) {
+          errorMessage = 'Authentication required for TTS service.';
+        }
+      }
+      
+      throw new Error(errorMessage);
+    }
+  };
 
   // Markdown formatting function for AI descriptions
   const formatMarkdown = (text: string) => {
@@ -316,12 +364,20 @@ const CameraAIApp: React.FC = () => {
     isCameraOn && videoLoaded && !isCapturing
   );
 
-  // Load settings on mount
+  // Load settings on mount with proper cleanup
   useEffect(() => {
     loadSettings();
     checkAvailableCameras();
     checkAuthStatus();
     checkSecureContext();
+
+    // Cleanup function for any global event listeners or resources
+    return () => {
+      // Clean up any global resources if needed
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
   const checkSecureContext = () => {
@@ -342,17 +398,15 @@ const CameraAIApp: React.FC = () => {
 
   const loadSettings = () => {
     try {
-      const saved = localStorage.getItem('aiCameraSettings');
-      if (saved) {
-        const savedSettings = JSON.parse(saved);
-        setSettings(savedSettings);
-        applyTheme(savedSettings.theme);
-      } else {
-        // Apply default theme on first load
-        applyTheme(settings.theme);
-      }
+      const defaultSettings = settings;
+      const loadedSettings = configManager.loadConfigWithFallback('aiCameraSettings', defaultSettings);
+      setSettings(loadedSettings);
+      applyTheme(loadedSettings.theme);
     } catch (error) {
-      console.error('Error loading settings:', error);
+      handleConfigurationError(error as Error, {
+        component: 'CameraAIApp',
+        action: 'load_settings'
+      });
       applyTheme(settings.theme);
     }
   };
@@ -381,14 +435,22 @@ const CameraAIApp: React.FC = () => {
   };
 
   const handleSettingsChange = (newSettings: Settings) => {
-    setSettings(newSettings);
-    applyTheme(newSettings.theme);
-    
-    // Save settings to localStorage
     try {
-      localStorage.setItem('aiCameraSettings', JSON.stringify(newSettings));
+      setSettings(newSettings);
+      applyTheme(newSettings.theme);
+      
+      // Save settings with fallback handling
+      const saved = configManager.saveConfigWithFallback('aiCameraSettings', newSettings);
+      if (!saved) {
+        // If save failed, show warning but continue with in-memory settings
+        console.warn('Settings could not be persisted but will remain active for this session');
+      }
     } catch (error) {
-      console.error('Error saving settings:', error);
+      handleConfigurationError(error as Error, {
+        component: 'CameraAIApp',
+        action: 'save_settings',
+        additionalData: { settingsKeys: Object.keys(newSettings) }
+      });
     }
   };
 
@@ -693,14 +755,73 @@ const CameraAIApp: React.FC = () => {
   };
 
   const flipCamera = async () => {
+    if (isFlipping || isCameraLoading) return;
+    
     const newFacingMode = facingMode === 'user' ? 'environment' : 'user';
     console.log('Flipping camera from', facingMode, 'to', newFacingMode);
-    setFacingMode(newFacingMode);
+    
+    setIsFlipping(true);
+    
     if (isCameraOn) {
-      stopCamera();
-      setTimeout(() => {
-        requestCameraPermission();
-      }, 500);
+      try {
+        // Provide immediate visual feedback
+        toast({
+          title: "Switching camera",
+          description: `Switching to ${newFacingMode === 'user' ? 'front' : 'back'} camera...`,
+          duration: 2000
+        });
+
+        // Stop current camera
+        stopCamera();
+        
+        // Update facing mode
+        setFacingMode(newFacingMode);
+        
+        // Wait for animation to complete, then start new camera
+        // Increased timeout to match enhanced animation duration
+        setTimeout(async () => {
+          try {
+            await requestCameraPermission();
+            
+            // Success feedback
+            toast({
+              title: "Camera switched",
+              description: `Now using ${newFacingMode === 'user' ? 'front' : 'back'} camera`,
+              duration: 2000
+            });
+          } catch (error) {
+            console.error('Error restarting camera after flip:', error);
+            toast({
+              title: "Camera restart failed",
+              description: "Unable to restart camera after switching",
+              variant: "destructive",
+              duration: 3000
+            });
+          } finally {
+            setIsFlipping(false);
+          }
+        }, 800); // Match animation duration
+        
+      } catch (error) {
+        console.error('Error during camera flip:', error);
+        setIsFlipping(false);
+        toast({
+          title: "Camera flip failed",
+          description: "Unable to switch camera",
+          variant: "destructive",
+          duration: 3000
+        });
+      }
+    } else {
+      // If camera is off, just update the facing mode
+      setFacingMode(newFacingMode);
+      setIsFlipping(false);
+      
+      toast({
+        title: "Camera mode updated",
+        description: `Will use ${newFacingMode === 'user' ? 'front' : 'back'} camera when started`,
+        duration: 2000
+      });
     }
   };
 
@@ -1012,7 +1133,8 @@ const CameraAIApp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-dark text-foreground">
+    <TTSSettingsProvider ttsConfig={{ engine: settings.ttsEngine, voice: settings.ttsVoice }}>
+      <div className="min-h-screen bg-gradient-dark text-foreground">
       {/* Flash overlay */}
       {showFlash && <div className="fixed inset-0 z-50 camera-flash pointer-events-none" />}
       
@@ -1117,6 +1239,7 @@ const CameraAIApp: React.FC = () => {
             previewMinWidth={settings.previewMinWidth}
             previewMinHeight={settings.previewMinHeight}
             maintainAspectRatio={settings.maintainAspectRatio}
+            isFlipping={isFlipping}
           />
         )}
 
@@ -1253,9 +1376,30 @@ const CameraAIApp: React.FC = () => {
         {/* AI Description (for single capture mode) */}
         {aiDescription && !settings.autoCapture && (
           <Card className="ai-response-box">
-            <h3 className="text-sm font-medium text-muted-foreground mb-3">
-              AI Description
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-muted-foreground">
+                AI Description
+              </h3>
+              <TTSControls
+                text={aiDescription}
+                config={{
+                  engine: settings.ttsEngine,
+                  voice: settings.ttsVoice
+                }}
+                className="flex-shrink-0"
+                size="sm"
+                variant="ghost"
+                onError={(error) => {
+                  console.log('TTS failed with configured settings:', error);
+                  // The TTSControls component will handle fallback internally
+                  toast({
+                    title: "TTS Warning",
+                    description: "Using fallback TTS settings due to configuration issue",
+                    duration: 3000
+                  });
+                }}
+              />
+            </div>
             <div className="prose prose-invert max-w-none">
               <div 
                 className="text-sm leading-relaxed"
@@ -1294,7 +1438,7 @@ const CameraAIApp: React.FC = () => {
           <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
             Puter.com
           </a>{' '}
-          | Version 1.0.63 | 2025
+          | Version 1.1.0 | 2025
         </p>
       </footer>
 
@@ -1309,6 +1453,7 @@ const CameraAIApp: React.FC = () => {
         onSettingsChange={handleSettingsChange}
       />
     </div>
+    </TTSSettingsProvider>
   );
 };
 

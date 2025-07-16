@@ -1,8 +1,12 @@
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Minimize2, Maximize2, Loader } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { AnimationWrapper, useAnimation, type AnimationType } from './AnimationWrapper';
+import { ErrorBoundary } from './ErrorBoundary';
+import { handleCameraError } from '@/lib/errorHandling';
+import { LoadingIndicator } from './LoadingIndicator';
 
 interface CameraPreviewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -16,9 +20,13 @@ interface CameraPreviewProps {
   previewMinWidth?: number;
   previewMinHeight?: number;
   maintainAspectRatio?: boolean;
+  isFlipping?: boolean;
 }
 
-export const CameraPreview: React.FC<CameraPreviewProps> = ({
+type DeviceType = 'desktop' | 'mobile';
+type AspectRatio = '16:9' | '9:16';
+
+const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
   videoRef,
   isMinimized,
   onToggleMinimize,
@@ -29,22 +37,115 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
   showFlipButton = true,
   previewMinWidth = 400,
   previewMinHeight = 225,
-  maintainAspectRatio = true
+  maintainAspectRatio = true,
+  isFlipping = false
 }) => {
   const [lastTap, setLastTap] = useState<number>(0);
+  const [deviceType, setDeviceType] = useState<DeviceType>('desktop');
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>('16:9');
+  
+  // Animation management
+  const animation = useAnimation('flip');
+  const [animationType, setAnimationType] = useState<AnimationType>('flip');
 
-  // Double-tap handler for mobile camera flip
-  const handleVideoTap = useCallback(() => {
-    const now = Date.now();
-    const timeDiff = now - lastTap;
-    
-    if (timeDiff < 300 && timeDiff > 0) {
-      // Double tap detected - flip camera
-      onFlipCamera();
+  // Sync animation state with isFlipping prop
+  useEffect(() => {
+    if (isFlipping && !animation.isAnimating) {
+      // Vary animation type based on device for better UX
+      const selectedAnimation: AnimationType = deviceType === 'mobile' ? 'slide' : 'flip';
+      setAnimationType(selectedAnimation);
+      animation.startAnimation(selectedAnimation);
+    } else if (!isFlipping && animation.isAnimating) {
+      animation.stopAnimation();
     }
+  }, [isFlipping, animation, deviceType]);
+
+  // Device detection and aspect ratio determination
+  useEffect(() => {
+    const detectDevice = () => {
+      // Check for mobile devices using user agent
+      const isMobileUserAgent = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      // Check for touch capability
+      const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+      
+      // Check screen size - mobile typically has smaller screens
+      const isSmallScreen = window.innerWidth <= 768;
+      
+      // Check orientation - portrait is more common on mobile
+      const isPortrait = window.innerHeight > window.innerWidth;
+      
+      // Determine device type based on multiple factors
+      const isMobile = isMobileUserAgent || (isTouchDevice && isSmallScreen);
+      
+      const newDeviceType: DeviceType = isMobile ? 'mobile' : 'desktop';
+      const newAspectRatio: AspectRatio = (isMobile && isPortrait) ? '9:16' : '16:9';
+      
+      setDeviceType(newDeviceType);
+      setAspectRatio(newAspectRatio);
+      
+      console.log('Device detection:', {
+        deviceType: newDeviceType,
+        aspectRatio: newAspectRatio,
+        isMobileUserAgent,
+        isTouchDevice,
+        isSmallScreen,
+        isPortrait,
+        screenSize: `${window.innerWidth}x${window.innerHeight}`
+      });
+    };
+
+    // Initial detection
+    detectDevice();
+
+    // Re-detect on window resize (orientation change)
+    const handleResize = () => {
+      detectDevice();
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
+  // Enhanced camera flip handler with error handling
+  const handleFlipCamera = useCallback(() => {
+    if (isCameraLoading || isFlipping) return;
     
-    setLastTap(now);
-  }, [lastTap, onFlipCamera]);
+    try {
+      onFlipCamera();
+    } catch (error) {
+      handleCameraError(error as Error, {
+        component: 'CameraPreview',
+        action: 'flip_camera',
+        additionalData: { deviceType, aspectRatio }
+      });
+    }
+  }, [isCameraLoading, isFlipping, onFlipCamera, deviceType, aspectRatio]);
+
+  // Double-tap handler for mobile camera flip with error handling
+  const handleVideoTap = useCallback(() => {
+    try {
+      const now = Date.now();
+      const timeDiff = now - lastTap;
+      
+      if (timeDiff < 300 && timeDiff > 0) {
+        // Double tap detected - flip camera
+        handleFlipCamera();
+      }
+      
+      setLastTap(now);
+    } catch (error) {
+      handleCameraError(error as Error, {
+        component: 'CameraPreview',
+        action: 'double_tap_handler'
+      });
+    }
+  }, [lastTap, handleFlipCamera]);
 
   // Check if we should show flip button (more lenient conditions for mobile)
   const shouldShowFlipButton = () => {
@@ -63,8 +164,16 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     if (!isMinimized) return {};
     
     if (maintainAspectRatio) {
-      // Calculate height based on 16:9 aspect ratio
-      const aspectHeight = (previewMinWidth * 9) / 16;
+      // Calculate height based on current aspect ratio
+      let aspectHeight: number;
+      if (aspectRatio === '9:16') {
+        // For mobile portrait: width is smaller, height is larger
+        aspectHeight = (previewMinWidth * 16) / 9;
+      } else {
+        // For desktop landscape: 16:9 ratio
+        aspectHeight = (previewMinWidth * 9) / 16;
+      }
+      
       return {
         width: `${previewMinWidth}px`,
         height: `${aspectHeight}px`
@@ -77,6 +186,40 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
     };
   };
 
+  // Get responsive aspect ratio class
+  const getAspectRatioClass = () => {
+    if (aspectRatio === '9:16') {
+      return 'aspect-[9/16]'; // Mobile portrait
+    }
+    return 'aspect-video'; // Desktop landscape (16:9)
+  };
+
+  // Get responsive container classes
+  const getContainerClasses = () => {
+    const baseClasses = 'bg-muted/20 rounded-lg overflow-hidden camera-preview relative';
+    const aspectClass = getAspectRatioClass();
+    const minimizedClass = isMinimized ? 'minimized' : '';
+    
+    if (isMinimized) {
+      return `${baseClasses} ${aspectClass} ${minimizedClass} h-full`;
+    }
+    
+    // Full size responsive classes
+    return `${baseClasses} ${aspectClass} w-full max-w-full`;
+  };
+
+  // Get video classes for proper display without cropping
+  const getVideoClasses = () => {
+    const baseClasses = 'w-full h-full transition-opacity duration-300 cursor-pointer';
+    const opacityClass = videoLoaded ? 'opacity-100' : 'opacity-0';
+    
+    // Use object-contain to ensure complete video display without cropping
+    // This ensures the entire camera feed is visible within the container
+    const objectFitClass = 'object-contain';
+    
+    return `${baseClasses} ${opacityClass} ${objectFitClass}`;
+  };
+
   return (
     <Card 
       className={`relative transition-all duration-300 ${
@@ -84,30 +227,59 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
       }`}
       style={getMinimizedStyle()}
     >
-      <div className={`bg-muted/20 rounded-lg overflow-hidden camera-preview relative ${
-        isMinimized ? 'aspect-video h-full' : 'aspect-video'
-      }`}>
-        {isCameraLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-muted/50 z-10">
-            <div className="flex flex-col items-center gap-3">
-              <Loader className="h-8 w-8 animate-spin" />
-              <p className="text-sm text-muted-foreground">Loading camera...</p>
+      <div className={getContainerClasses()}>
+        {(isCameraLoading || isFlipping) && (
+          <div className="absolute inset-0 flex items-center justify-center bg-muted/50 backdrop-blur-sm z-10">
+            <div className="flex flex-col items-center gap-4 p-6 bg-background/80 rounded-lg border shadow-lg">
+              <div className="relative">
+                <Loader className="h-10 w-10 animate-spin text-primary" />
+                {isFlipping && (
+                  <div className="absolute inset-0 animate-camera-loading">
+                    <RotateCcw className="h-10 w-10 text-primary/50" />
+                  </div>
+                )}
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">
+                  {isFlipping ? 'Switching camera...' : 'Loading camera...'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isFlipping ? 'Please wait while we switch cameras' : 'Initializing camera feed'}
+                </p>
+              </div>
+              {/* Progress indicator for camera flip */}
+              {isFlipping && (
+                <div className="w-32 h-1 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-primary animate-pulse rounded-full" style={{
+                    animation: 'loading-progress 0.8s ease-in-out'
+                  }} />
+                </div>
+              )}
             </div>
           </div>
         )}
         
-        <video 
-          ref={videoRef} 
-          autoPlay 
-          playsInline 
-          muted 
-          className={`w-full h-full object-cover transition-opacity duration-300 cursor-pointer ${
-            videoLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
-          style={{ aspectRatio: '16/9' }}
-          onClick={handleVideoTap}
-          onTouchEnd={handleVideoTap}
-        />
+        <AnimationWrapper
+          isAnimating={animation.isAnimating}
+          animationType={animationType}
+          duration={800}
+          className="w-full h-full"
+          onAnimationComplete={() => {
+            // Animation completed, can perform any cleanup here
+            console.log(`Camera ${animationType} animation completed`);
+          }}
+        >
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            muted 
+            className={getVideoClasses()}
+            style={{ aspectRatio: aspectRatio }}
+            onClick={handleVideoTap}
+            onTouchEnd={handleVideoTap}
+          />
+        </AnimationWrapper>
         
         {/* Top Left - Minimize/Maximize Button */}
         <Button 
@@ -125,12 +297,16 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
           <Button 
             variant="secondary" 
             size="icon" 
-            onClick={onFlipCamera} 
+            onClick={handleFlipCamera} 
             className="absolute top-4 right-4 bg-black/50 hover:bg-black/70 z-20"
-            disabled={isCameraLoading}
+            disabled={isCameraLoading || isFlipping}
             title="Switch camera (front/back) - Double tap video to flip"
           >
-            <RotateCcw className="h-4 w-4" />
+            {isFlipping ? (
+              <Loader className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
           </Button>
         )}
         
@@ -142,7 +318,69 @@ export const CameraPreview: React.FC<CameraPreviewProps> = ({
             </div>
           </div>
         )}
+        
+        {/* Device info display (for debugging - can be removed in production) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="absolute top-16 left-4 z-10">
+            <div className="bg-black/80 text-white text-xs px-2 py-1 rounded opacity-70">
+              {deviceType} | {aspectRatio}
+            </div>
+          </div>
+        )}
       </div>
     </Card>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison function for memo optimization
+  return (
+    prevProps.isMinimized === nextProps.isMinimized &&
+    prevProps.isCameraLoading === nextProps.isCameraLoading &&
+    prevProps.videoLoaded === nextProps.videoLoaded &&
+    prevProps.isFlipping === nextProps.isFlipping &&
+    prevProps.showFlipButton === nextProps.showFlipButton &&
+    prevProps.previewMinWidth === nextProps.previewMinWidth &&
+    prevProps.previewMinHeight === nextProps.previewMinHeight &&
+    prevProps.maintainAspectRatio === nextProps.maintainAspectRatio &&
+    prevProps.availableCameras.length === nextProps.availableCameras.length &&
+    prevProps.videoRef === nextProps.videoRef &&
+    prevProps.onToggleMinimize === nextProps.onToggleMinimize &&
+    prevProps.onFlipCamera === nextProps.onFlipCamera
+  );
+});
+
+// Add display name for debugging
+CameraPreviewInner.displayName = 'CameraPreviewInner';
+
+// Wrap with error boundary
+export const CameraPreview: React.FC<CameraPreviewProps> = (props) => (
+  <ErrorBoundary
+    onError={(error, errorInfo) => {
+      handleCameraError(error, {
+        component: 'CameraPreview',
+        action: 'component_error',
+        additionalData: { 
+          props: {
+            isMinimized: props.isMinimized,
+            isCameraLoading: props.isCameraLoading,
+            videoLoaded: props.videoLoaded,
+            availableCameras: props.availableCameras.length
+          }
+        }
+      });
+    }}
+    fallback={
+      <Card className="p-6 border-destructive">
+        <div className="flex flex-col items-center text-center space-y-4">
+          <LoadingIndicator
+            type="error"
+            message="Camera Preview Error"
+            subMessage="Unable to display camera preview. Please refresh the page."
+            size="md"
+          />
+        </div>
+      </Card>
+    }
+  >
+    <CameraPreviewInner {...props} />
+  </ErrorBoundary>
+);

@@ -1,9 +1,10 @@
 
 import React, { useState, useRef } from 'react';
-import { X, Volume2, Download, Trash2, FileText, Copy } from 'lucide-react';
+import { X, Download, Trash2, FileText, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
+import { TTSControls } from './TTSControls';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -23,13 +24,9 @@ interface ImageGalleryProps {
 
 export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImage, onDeleteImages, onExportMultiple }) => {
   const [selectedImage, setSelectedImage] = useState<CapturedImage | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
   const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(0);
-  const [audioDuration, setAudioDuration] = useState(0);
   const [expandedPreview, setExpandedPreview] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const formatDescription = (description: string) => {
     // Enhanced markdown-like formatting for better readability
@@ -66,63 +63,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
       .replace(/! /g, '! ');
   };
 
-  const speakDescription = async (description: string) => {
-    if (!description) return;
-    
-    if (isSpeaking) {
-      // Stop current audio
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-      setIsSpeaking(false);
-      setAudioProgress(0);
-      return;
-    }
-    
-    setIsSpeaking(true);
-    try {
-      const audio = await puter.ai.txt2speech(description, {
-        voice: "Joanna",
-        engine: "standard",
-        language: "en-US"
-      });
-      
-      audioRef.current = audio;
-      audio.play();
-      
-      // Set duration once metadata is loaded
-      audio.addEventListener('loadedmetadata', () => {
-        setAudioDuration(audio.duration);
-      });
-      
-      // Update progress during playback
-      audio.addEventListener('timeupdate', () => {
-        setAudioProgress(audio.currentTime);
-      });
-      
-      // Reset when audio ends
-      audio.addEventListener('ended', () => {
-        setIsSpeaking(false);
-        setAudioProgress(0);
-        setAudioDuration(0);
-        audioRef.current = null;
-      });
-      
-      // Handle errors
-      audio.addEventListener('error', () => {
-        setIsSpeaking(false);
-        setAudioProgress(0);
-        setAudioDuration(0);
-        audioRef.current = null;
-      });
-    } catch (error) {
-      console.error('TTS error:', error);
-      setIsSpeaking(false);
-      setAudioProgress(0);
-      setAudioDuration(0);
-    }
-  };
+
 
   const toggleImageSelection = (index: number, event: React.MouseEvent) => {
     event.stopPropagation();
@@ -322,17 +263,16 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                       }}
                     />
                     <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => speakDescription(image.description!)}
-                          className="h-6 px-2 text-xs"
-                          title={isSpeaking ? "Stop audio" : "Listen to description"}
-                        >
-                          <Volume2 className="h-3 w-3 mr-1" />
-                          {isSpeaking ? 'Stop' : 'Listen'}
-                        </Button>
+                      <div className="flex gap-2 items-start">
+                        <div className="flex-1">
+                          <TTSControls
+                            text={image.description!}
+                            variant="ghost"
+                            size="sm"
+                            className="w-full"
+                            showScrubBar={true}
+                          />
+                        </div>
                         {onExportImage && (
                           <Button
                             variant="ghost"
@@ -346,15 +286,6 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                           </Button>
                         )}
                       </div>
-                      {/* Audio Progress Bar */}
-                      {isSpeaking && audioDuration > 0 && (
-                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-100" 
-                            style={{ width: `${(audioProgress / audioDuration) * 100}%` }}
-                          />
-                        </div>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -393,16 +324,13 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold">AI Description</h3>
-                      <Button
+                      <TTSControls
+                        text={selectedImage.description!}
                         variant="outline"
                         size="sm"
-                        onClick={() => speakDescription(selectedImage.description!)}
-                        disabled={isSpeaking}
-                        className="flex items-center gap-2"
-                      >
-                        <Volume2 className="h-4 w-4" />
-                        {isSpeaking ? 'Speaking...' : 'Listen'}
-                      </Button>
+                        showScrubBar={false}
+                        className="w-auto"
+                      />
                     </div>
                     <div 
                       className="text-sm leading-relaxed prose prose-invert max-w-none overflow-wrap-anywhere"
