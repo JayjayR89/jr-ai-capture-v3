@@ -1646,6 +1646,7 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
             <Button variant="outline" onClick={cancelChanges} className="flex-1">
               Cancel
             </Button>
+            <Button onClick={() => window.dispatchEvent(new CustomEvent('show-tutorial'))} className="settings-btn mt-2" aria-label="Show tutorial">Show Tutorial</Button>
             <Button onClick={saveSettings} className="flex-1">
               Save Settings
             </Button>
