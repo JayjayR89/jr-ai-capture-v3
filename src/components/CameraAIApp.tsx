@@ -16,6 +16,8 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { handleCameraError, handleConfigurationError, errorHandler } from '@/lib/errorHandling';
 import { LoadingIndicator, useLoadingOverlay } from './LoadingIndicator';
 import { cameraManager, configManager } from '@/lib/fallbacks';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -91,6 +93,9 @@ interface Settings {
   aiRandomVehicles: boolean;
   ttsEngine: 'standard' | 'neural' | 'generative';
   ttsVoice: TTSVoice;
+  voiceCommandsEnabled: boolean;
+  language: string;
+  customAIEndpoint: string;
 }
 
 const CameraAIApp: React.FC = () => {
@@ -176,7 +181,10 @@ const CameraAIApp: React.FC = () => {
       name: 'Joanna',
       engine: 'neural',
       displayName: 'Joanna (US, Neural)'
-    }
+    },
+    voiceCommandsEnabled: false,
+    language: 'en-US',
+    customAIEndpoint: 'https://api.puter.com/v1/ai/describe'
   });
 
   // UI state
@@ -363,6 +371,23 @@ const CameraAIApp: React.FC = () => {
     captureImage,
     isCameraOn && videoLoaded && !isCapturing
   );
+
+  const { settings: appSettings } = useSettings();
+  const handleVoiceCommand = (cmd: string) => {
+    if (cmd.includes('capture')) captureImage();
+    else if (cmd.includes('describe')) describeImage();
+    else if (cmd.includes('export')) {
+      if (lastCapture && aiDescription) exportCapture(lastCapture, aiDescription);
+    }
+    // Add next/previous/gallery navigation as needed
+  };
+  const {
+    listening: voiceListening,
+    lastCommand: lastVoiceCommand,
+    error: voiceError,
+    startListening,
+    stopListening
+  } = useVoiceCommands(handleVoiceCommand);
 
   // Load settings on mount with proper cleanup
   useEffect(() => {
@@ -1250,6 +1275,28 @@ const CameraAIApp: React.FC = () => {
             remainingTime={autoCapture.remainingTime}
             isActive={autoCapture.isActive}
           />
+        )}
+
+        {/* Voice Command Status */}
+        {appSettings.voiceCommandsEnabled && (
+          <div className="flex gap-2 items-center mb-2">
+            <button
+              onClick={voiceListening ? stopListening : startListening}
+              className={`p-2 rounded-full border ${voiceListening ? 'bg-green-200' : 'bg-gray-200'}`}
+              title={voiceListening ? 'Stop Listening' : 'Start Voice Command'}
+            >
+              <span role="img" aria-label="microphone">🎤</span>
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {voiceListening ? 'Listening...' : 'Voice Commands'}
+              {lastVoiceCommand && (
+                <span className="ml-2">Heard: <b>{lastVoiceCommand}</b></span>
+              )}
+              {voiceError && (
+                <span className="ml-2 text-red-500">{voiceError}</span>
+              )}
+            </span>
+          </div>
         )}
 
         {/* Camera Controls */}
