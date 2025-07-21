@@ -18,6 +18,8 @@ import { LoadingIndicator, useLoadingOverlay } from './LoadingIndicator';
 import { cameraManager, configManager } from '@/lib/fallbacks';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useVoiceCommands } from '@/hooks/useVoiceCommands';
+import { SchedulerProvider } from '@/contexts/SchedulerContext';
+import SchedulerModal from './SchedulerModal';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -123,6 +125,7 @@ const CameraAIApp: React.FC = () => {
   const [showFlash, setShowFlash] = useState(false);
   const [aiQueue, setAiQueue] = useState<CapturedImage[]>([]);
   const [processingAI, setProcessingAI] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false);
 
   // Settings state
   const [settings, setSettings] = useState<Settings>({
@@ -1153,349 +1156,353 @@ const CameraAIApp: React.FC = () => {
   };
 
   return (
-    <TTSSettingsProvider ttsConfig={{ engine: settings.ttsEngine, voice: settings.ttsVoice }}>
-      <div className="min-h-screen bg-gradient-dark text-foreground">
-      {/* Flash overlay */}
-      {showFlash && <div className="fixed inset-0 z-50 camera-flash pointer-events-none" />}
-      
-      {/* Header */}
-      <header className="flex items-center justify-between p-4 border-b border-border">
-        <div className="flex items-center gap-2">
-          {isAuthenticated ? (
-            <div className="relative">
+    <SchedulerProvider onCapture={captureImage}>
+      <TTSSettingsProvider ttsConfig={{ engine: settings.ttsEngine, voice: settings.ttsVoice }}>
+        <div className="min-h-screen bg-gradient-dark text-foreground">
+        {/* Flash overlay */}
+        {showFlash && <div className="fixed inset-0 z-50 camera-flash pointer-events-none" />}
+        
+        {/* Header */}
+        <header className="flex items-center justify-between p-4 border-b border-border">
+          <div className="flex items-center gap-2">
+            {isAuthenticated ? (
+              <div className="relative">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowUserDropdown(!showUserDropdown)} 
+                  className="flex items-center gap-2"
+                  title={settings.tooltips ? `Signed in as ${user?.username}` : undefined}
+                >
+                  <User className="h-4 w-4" />
+                  {user?.username}
+                </Button>
+                
+                {showUserDropdown && (
+                  <div className="absolute top-full left-0 mt-2 p-2 bg-card border border-border rounded-lg shadow-modal z-50">
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {user?.fullName || user?.username}
+                    </p>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={handleSignOut} 
+                      className="flex items-center gap-2 w-full justify-start"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign Out
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
               <Button 
                 variant="outline" 
-                onClick={() => setShowUserDropdown(!showUserDropdown)} 
+                onClick={handleSignIn} 
                 className="flex items-center gap-2"
-                title={settings.tooltips ? `Signed in as ${user?.username}` : undefined}
+                title={settings.tooltips ? "Sign in to use AI features" : undefined}
               >
-                <User className="h-4 w-4" />
-                {user?.username}
+                <LogIn className="h-4 w-4" />
+                Sign In
               </Button>
-              
-              {showUserDropdown && (
-                <div className="absolute top-full left-0 mt-2 p-2 bg-card border border-border rounded-lg shadow-modal z-50">
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {user?.fullName || user?.username}
-                  </p>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={handleSignOut} 
-                    className="flex items-center gap-2 w-full justify-start"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Sign Out
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <Button 
-              variant="outline" 
-              onClick={handleSignIn} 
-              className="flex items-center gap-2"
-              title={settings.tooltips ? "Sign in to use AI features" : undefined}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </Button>
-          )}
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => setShowSettings(true)} 
-            className="border border-gray-400 rounded-lg"
-            title={settings.tooltips ? "Open settings" : undefined}
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 p-4 space-y-6">
-        {/* Security Warning Banner */}
-        {!isSecureContext && (
-          <Card className="p-4 bg-yellow-500/10 border-yellow-500/20">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center mt-0.5">
-                <span className="text-yellow-600 text-sm">⚠️</span>
-              </div>
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-yellow-600 mb-2">
-                  Camera Access Requires HTTPS
-                </h3>
-                <p className="text-xs text-yellow-600/80 leading-relaxed">
-                  For security reasons, camera access is only available over HTTPS or localhost. 
-                  To use the camera on your mobile device, please:
-                </p>
-                <ul className="text-xs text-yellow-600/80 mt-2 ml-4 space-y-1">
-                  <li>• Access the app via HTTPS (secure connection)</li>
-                  <li>• Or use localhost if testing locally</li>
-                  <li>• Network URLs (HTTP) don't support camera access</li>
-                </ul>
-                <p className="text-xs text-yellow-600/80 mt-2">
-                  You can still view previously captured images and use other features.
-                </p>
-              </div>
-            </div>
-          </Card>
-        )}
-        {/* Camera Preview */}
-        {(isCameraOn || isCameraLoading) && (
-          <CameraPreview
-            videoRef={videoRef}
-            isMinimized={isMinimized}
-            onToggleMinimize={() => setIsMinimized(!isMinimized)}
-            onFlipCamera={flipCamera}
-            isCameraLoading={isCameraLoading}
-            videoLoaded={videoLoaded}
-            availableCameras={availableCameras}
-            showFlipButton={true}
-            previewMinWidth={settings.previewMinWidth}
-            previewMinHeight={settings.previewMinHeight}
-            maintainAspectRatio={settings.maintainAspectRatio}
-            isFlipping={isFlipping}
-          />
-        )}
-
-        {/* Auto-Capture Progress */}
-        {settings.autoCapture && isCameraOn && (
-          <AutoCaptureProgress
-            progress={autoCapture.progress}
-            remainingTime={autoCapture.remainingTime}
-            isActive={autoCapture.isActive}
-          />
-        )}
-
-        {/* Voice Command Status */}
-        {appSettings.voiceCommandsEnabled && (
-          <div className="flex gap-2 items-center mb-2">
-            <button
-              onClick={voiceListening ? stopListening : startListening}
-              className={`p-2 rounded-full border ${voiceListening ? 'bg-green-200' : 'bg-gray-200'}`}
-              title={voiceListening ? 'Stop Listening' : 'Start Voice Command'}
-            >
-              <span role="img" aria-label="microphone">🎤</span>
-            </button>
-            <span className="text-xs text-muted-foreground">
-              {voiceListening ? 'Listening...' : 'Voice Commands'}
-              {lastVoiceCommand && (
-                <span className="ml-2">Heard: <b>{lastVoiceCommand}</b></span>
-              )}
-              {voiceError && (
-                <span className="ml-2 text-red-500">{voiceError}</span>
-              )}
-            </span>
+            )}
           </div>
-        )}
-
-        {/* Camera Controls */}
-        <div className="flex gap-4">
-          <Button 
-            onClick={isCameraOn ? stopCamera : requestCameraPermission} 
-            variant={isCameraOn ? "destructive" : "default"} 
-            className="flex-1 h-12"
-            disabled={isCameraLoading}
-            title={settings.tooltips ? (isCameraOn ? "Turn off camera" : "Turn on camera") : undefined}
-          >
-            {isCameraLoading ? (
-              <>
-                <Loader className="h-5 w-5 mr-2 animate-spin" />
-                Starting Camera...
-              </>
-            ) : isCameraOn ? (
-              <>
-                <CameraOff className="h-5 w-5 mr-2" />
-                Camera Off
-              </>
-            ) : (
-              <>
-                <Camera className="h-5 w-5 mr-2" />
-                Camera On
-              </>
-            )}
-          </Button>
-        </div>
-
-        {/* Capture Controls */}
-        <div className="grid grid-cols-2 gap-4">
-          <Button 
-            onClick={settings.autoCapture ? handleAutoCaptureToggle : captureImage} 
-            disabled={!isCameraOn || isCapturing || !videoLoaded || isCameraLoading} 
-            className="h-12 capture-button gradient-primary"
-            title={settings.tooltips ? (settings.autoCapture 
-              ? (autoCapture.isActive ? "Stop auto-capture" : "Start auto-capture")
-              : "Take a photo"
-            ) : undefined}
-          >
-            <Circle className="h-5 w-5 mr-2" />
-            {getCaptureButtonText()}
-          </Button>
           
-          <Button 
-            onClick={describeImage} 
-            disabled={!lastCapture || processingAI || settings.autoCapture} 
-            variant="outline" 
-            className="h-12"
-            title={settings.tooltips ? "Get AI description of last captured image" : undefined}
-          >
-            {processingAI ? (
-              <>
-                <Loader className="h-5 w-5 mr-2 animate-spin" />
-                Describing...
-              </>
-            ) : (
-              <>
-                <Sparkles className="h-5 w-5 mr-2" />
-                Describe
-              </>
-            )}
-          </Button>
-        </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setShowSettings(true)} 
+              className="border border-gray-400 rounded-lg"
+              title={settings.tooltips ? "Open settings" : undefined}
+            >
+              <Settings className="h-5 w-5" />
+            </Button>
+          </div>
+        </header>
 
-        {/* Image Gallery */}
-        {capturedImages.length > 0 && (
-          <ImageGallery 
-            images={capturedImages} 
-            onExportImage={exportCapture}
-            onDeleteImages={deleteImages}
-            onExportMultiple={exportMultipleCaptures}
-          />
-        )}
-
-        {/* Last Capture Thumbnail (for single capture mode) */}
-        {lastCapture && !settings.autoCapture && (
-          <Card className="p-4">
-            <h3 className="text-sm font-medium text-muted-foreground mb-2">
-              Last Capture
-            </h3>
-            <div className="flex gap-4">
-              <img 
-                src={lastCapture.dataUrl} 
-                alt="Last capture" 
-                className="w-20 h-20 object-cover rounded-lg border shadow-sm" 
-              />
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">
-                  {lastCapture.timestamp.toLocaleString()}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Image captured successfully
-                </p>
-                {lastCapture.description && (
-                  <p className="text-xs text-green-600 mt-1">
-                    ✓ AI description available
+        {/* Main Content */}
+        <main className="flex-1 p-4 space-y-6">
+          {/* Security Warning Banner */}
+          {!isSecureContext && (
+            <Card className="p-4 bg-yellow-500/10 border-yellow-500/20">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center mt-0.5">
+                  <span className="text-yellow-600 text-sm">⚠️</span>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-medium text-yellow-600 mb-2">
+                    Camera Access Requires HTTPS
+                  </h3>
+                  <p className="text-xs text-yellow-600/80 leading-relaxed">
+                    For security reasons, camera access is only available over HTTPS or localhost. 
+                    To use the camera on your mobile device, please:
                   </p>
-                )}
-                {aiQueue.find(img => img.timestamp === lastCapture.timestamp) && (
-                  <p className="text-xs text-yellow-600 mt-1">
-                    ⏳ Queued for AI description
+                  <ul className="text-xs text-yellow-600/80 mt-2 ml-4 space-y-1">
+                    <li>• Access the app via HTTPS (secure connection)</li>
+                    <li>• Or use localhost if testing locally</li>
+                    <li>• Network URLs (HTTP) don't support camera access</li>
+                  </ul>
+                  <p className="text-xs text-yellow-600/80 mt-2">
+                    You can still view previously captured images and use other features.
                   </p>
-                )}
-                {/* Export Button - Show after Describe has been pressed */}
-                {aiDescription && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportCapture(lastCapture, aiDescription)}
-                    className="mt-2 h-7 px-3 text-xs"
-                    title="Export image and description as PDF"
-                  >
-                    <Download className="h-3 w-3 mr-1" />
-                    Export PDF
-                  </Button>
-                )}
+                </div>
               </div>
-            </div>
-          </Card>
-        )}
+            </Card>
+          )}
+          {/* Camera Preview */}
+          {(isCameraOn || isCameraLoading) && (
+            <CameraPreview
+              videoRef={videoRef}
+              isMinimized={isMinimized}
+              onToggleMinimize={() => setIsMinimized(!isMinimized)}
+              onFlipCamera={flipCamera}
+              isCameraLoading={isCameraLoading}
+              videoLoaded={videoLoaded}
+              availableCameras={availableCameras}
+              showFlipButton={true}
+              previewMinWidth={settings.previewMinWidth}
+              previewMinHeight={settings.previewMinHeight}
+              maintainAspectRatio={settings.maintainAspectRatio}
+              isFlipping={isFlipping}
+            />
+          )}
 
-        {/* AI Description (for single capture mode) */}
-        {aiDescription && !settings.autoCapture && (
-          <Card className="ai-response-box">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                AI Description
-              </h3>
-              <TTSControls
-                text={aiDescription}
-                config={{
-                  engine: settings.ttsEngine,
-                  voice: settings.ttsVoice
-                }}
-                className="flex-shrink-0"
-                size="sm"
-                variant="ghost"
-                onError={(error) => {
-                  console.log('TTS failed with configured settings:', error);
-                  // The TTSControls component will handle fallback internally
-                  toast({
-                    title: "TTS Warning",
-                    description: "Using fallback TTS settings due to configuration issue",
-                    duration: 3000
-                  });
-                }}
-              />
-            </div>
-            <div className="prose prose-invert max-w-none">
-              <div 
-                className="text-sm leading-relaxed"
-                dangerouslySetInnerHTML={{ 
-                  __html: formatMarkdown(aiDescription) 
-                }}
-              />
-            </div>
-          </Card>
-        )}
+          {/* Auto-Capture Progress */}
+          {settings.autoCapture && isCameraOn && (
+            <AutoCaptureProgress
+              progress={autoCapture.progress}
+              remainingTime={autoCapture.remainingTime}
+              isActive={autoCapture.isActive}
+            />
+          )}
 
-        {/* AI Processing Queue Status */}
-        {aiQueue.length > 0 && (
-          <Card className="p-4 bg-muted/20">
-            <div className="flex items-center gap-2">
-              <Loader className="h-4 w-4 animate-spin" />
-              <span className="text-sm text-muted-foreground">
-                Processing {aiQueue.length} image{aiQueue.length > 1 ? 's' : ''} for AI description...
+          {/* Voice Command Status */}
+          {appSettings.voiceCommandsEnabled && (
+            <div className="flex gap-2 items-center mb-2">
+              <button
+                onClick={voiceListening ? stopListening : startListening}
+                className={`p-2 rounded-full border ${voiceListening ? 'bg-green-200' : 'bg-gray-200'}`}
+                title={voiceListening ? 'Stop Listening' : 'Start Voice Command'}
+              >
+                <span role="img" aria-label="microphone">🎤</span>
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {voiceListening ? 'Listening...' : 'Voice Commands'}
+                {lastVoiceCommand && (
+                  <span className="ml-2">Heard: <b>{lastVoiceCommand}</b></span>
+                )}
+                {voiceError && (
+                  <span className="ml-2 text-red-500">{voiceError}</span>
+                )}
               </span>
             </div>
-          </Card>
-        )}
+          )}
 
-        {/* Hidden canvas for capture */}
-        <canvas ref={canvasRef} className="hidden" />
-      </main>
+          {/* Camera Controls */}
+          <div className="flex gap-4">
+            <Button 
+              onClick={isCameraOn ? stopCamera : requestCameraPermission} 
+              variant={isCameraOn ? "destructive" : "default"} 
+              className="flex-1 h-12"
+              disabled={isCameraLoading}
+              title={settings.tooltips ? (isCameraOn ? "Turn off camera" : "Turn on camera") : undefined}
+            >
+              {isCameraLoading ? (
+                <>
+                  <Loader className="h-5 w-5 mr-2 animate-spin" />
+                  Starting Camera...
+                </>
+              ) : isCameraOn ? (
+                <>
+                  <CameraOff className="h-5 w-5 mr-2" />
+                  Camera Off
+                </>
+              ) : (
+                <>
+                  <Camera className="h-5 w-5 mr-2" />
+                  Camera On
+                </>
+              )}
+            </Button>
+          </div>
 
-      {/* Footer */}
-      <footer className="p-4 text-center text-xs text-muted-foreground border-t border-border">
-        <p>
-          Created by{' '}
-          <a href="https://jayreddin.github.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            Jamie Reddin
-          </a>{' '}
-          using{' '}
-          <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-            Puter.com
-          </a>{' '}
-          | Version 1.1.0 | 2025
-        </p>
-      </footer>
+          {/* Capture Controls */}
+          <div className="grid grid-cols-2 gap-4">
+            <Button 
+              onClick={settings.autoCapture ? handleAutoCaptureToggle : captureImage} 
+              disabled={!isCameraOn || isCapturing || !videoLoaded || isCameraLoading} 
+              className="h-12 capture-button gradient-primary"
+              title={settings.tooltips ? (settings.autoCapture 
+                ? (autoCapture.isActive ? "Stop auto-capture" : "Start auto-capture")
+                : "Take a photo"
+              ) : undefined}
+            >
+              <Circle className="h-5 w-5 mr-2" />
+              {getCaptureButtonText()}
+            </Button>
+            
+            <Button 
+              onClick={describeImage} 
+              disabled={!lastCapture || processingAI || settings.autoCapture} 
+              variant="outline" 
+              className="h-12"
+              title={settings.tooltips ? "Get AI description of last captured image" : undefined}
+            >
+              {processingAI ? (
+                <>
+                  <Loader className="h-5 w-5 mr-2 animate-spin" />
+                  Describing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5 mr-2" />
+                  Describe
+                </>
+              )}
+            </Button>
+          </div>
 
-      {/* Settings Modal */}
-      <SettingsModal 
-        isOpen={showSettings} 
-        onClose={() => setShowSettings(false)} 
-        isAuthenticated={isAuthenticated} 
-        user={user} 
-        lastCapture={lastCapture} 
-        aiDescription={aiDescription}
-        onSettingsChange={handleSettingsChange}
-      />
-    </div>
-    </TTSSettingsProvider>
+          {/* Image Gallery */}
+          {capturedImages.length > 0 && (
+            <ImageGallery 
+              images={capturedImages} 
+              onExportImage={exportCapture}
+              onDeleteImages={deleteImages}
+              onExportMultiple={exportMultipleCaptures}
+            />
+          )}
+
+          {/* Last Capture Thumbnail (for single capture mode) */}
+          {lastCapture && !settings.autoCapture && (
+            <Card className="p-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                Last Capture
+              </h3>
+              <div className="flex gap-4">
+                <img 
+                  src={lastCapture.dataUrl} 
+                  alt="Last capture" 
+                  className="w-20 h-20 object-cover rounded-lg border shadow-sm" 
+                />
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">
+                    {lastCapture.timestamp.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Image captured successfully
+                  </p>
+                  {lastCapture.description && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ AI description available
+                    </p>
+                  )}
+                  {aiQueue.find(img => img.timestamp === lastCapture.timestamp) && (
+                    <p className="text-xs text-yellow-600 mt-1">
+                      ⏳ Queued for AI description
+                    </p>
+                  )}
+                  {/* Export Button - Show after Describe has been pressed */}
+                  {aiDescription && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportCapture(lastCapture, aiDescription)}
+                      className="mt-2 h-7 px-3 text-xs"
+                      title="Export image and description as PDF"
+                    >
+                      <Download className="h-3 w-3 mr-1" />
+                      Export PDF
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* AI Description (for single capture mode) */}
+          {aiDescription && !settings.autoCapture && (
+            <Card className="ai-response-box">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  AI Description
+                </h3>
+                <TTSControls
+                  text={aiDescription}
+                  config={{
+                    engine: settings.ttsEngine,
+                    voice: settings.ttsVoice
+                  }}
+                  className="flex-shrink-0"
+                  size="sm"
+                  variant="ghost"
+                  onError={(error) => {
+                    console.log('TTS failed with configured settings:', error);
+                    // The TTSControls component will handle fallback internally
+                    toast({
+                      title: "TTS Warning",
+                      description: "Using fallback TTS settings due to configuration issue",
+                      duration: 3000
+                    });
+                  }}
+                />
+              </div>
+              <div className="prose prose-invert max-w-none">
+                <div 
+                  className="text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ 
+                    __html: formatMarkdown(aiDescription) 
+                  }}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* AI Processing Queue Status */}
+          {aiQueue.length > 0 && (
+            <Card className="p-4 bg-muted/20">
+              <div className="flex items-center gap-2">
+                <Loader className="h-4 w-4 animate-spin" />
+                <span className="text-sm text-muted-foreground">
+                  Processing {aiQueue.length} image{aiQueue.length > 1 ? 's' : ''} for AI description...
+                </span>
+              </div>
+            </Card>
+          )}
+
+          {/* Hidden canvas for capture */}
+          <canvas ref={canvasRef} className="hidden" />
+        </main>
+
+        {/* Footer */}
+        <footer className="p-4 text-center text-xs text-muted-foreground border-t border-border">
+          <p>
+            Created by{' '}
+            <a href="https://jayreddin.github.io" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              Jamie Reddin
+            </a>{' '}
+            using{' '}
+            <a href="https://puter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              Puter.com
+            </a>{' '}
+            | Version 1.1.0 | 2025
+          </p>
+        </footer>
+
+        {/* Settings Modal */}
+        <SettingsModal 
+          isOpen={showSettings} 
+          onClose={() => setShowSettings(false)} 
+          isAuthenticated={isAuthenticated} 
+          user={user} 
+          lastCapture={lastCapture} 
+          aiDescription={aiDescription}
+          onSettingsChange={handleSettingsChange}
+        />
+        <button onClick={() => setShowScheduler(true)} className="fixed bottom-6 right-6 z-50 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg" aria-label="Open scheduler">⏰ Schedule</button>
+        <SchedulerModal isOpen={showScheduler} onClose={() => setShowScheduler(false)} />
+      </div>
+      </TTSSettingsProvider>
+    </SchedulerProvider>
   );
 };
 
