@@ -5,6 +5,7 @@ export interface Settings {
   customAIEndpoint: string;
   customAIApiKey: string;
   voiceCommandsEnabled: boolean;
+  aiOverlayEnabled: boolean;
 }
 
 const defaultSettings: Settings = {
@@ -12,6 +13,7 @@ const defaultSettings: Settings = {
   customAIEndpoint: '',
   customAIApiKey: '',
   voiceCommandsEnabled: false,
+  aiOverlayEnabled: false,
 };
 
 const SettingsContext = createContext<{

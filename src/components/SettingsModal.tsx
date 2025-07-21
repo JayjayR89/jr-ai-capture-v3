@@ -88,6 +88,7 @@ interface Settings {
   customAIEndpoint: string;
   customAIApiKey: string;
   voiceCommandsEnabled: boolean;
+  aiOverlayEnabled: boolean;
 }
 
 interface SettingsModalProps {
@@ -169,7 +170,8 @@ const defaultSettings: Settings = {
   language: 'en',
   customAIEndpoint: '',
   customAIApiKey: '',
-  voiceCommandsEnabled: false
+  voiceCommandsEnabled: false,
+  aiOverlayEnabled: false
 };
 
 const SettingsModalInner: React.FC<SettingsModalProps> = ({
@@ -217,7 +219,8 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
           language: savedSettings.language || defaultSettings.language,
           customAIEndpoint: savedSettings.customAIEndpoint || defaultSettings.customAIEndpoint,
           customAIApiKey: savedSettings.customAIApiKey || defaultSettings.customAIApiKey,
-          voiceCommandsEnabled: savedSettings.voiceCommandsEnabled || defaultSettings.voiceCommandsEnabled
+          voiceCommandsEnabled: savedSettings.voiceCommandsEnabled || defaultSettings.voiceCommandsEnabled,
+          aiOverlayEnabled: savedSettings.aiOverlayEnabled || defaultSettings.aiOverlayEnabled
         };
         setSettings(validSettings);
         setTempSettings(validSettings);
@@ -873,6 +876,17 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
                         onChange={e => setTempSettings(prev => ({ ...prev, voiceCommandsEnabled: e.target.checked }))}
                       />
                       Enable Voice Commands
+                    </label>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Real-Time AI Overlays</h3>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={tempSettings.aiOverlayEnabled}
+                        onChange={e => setTempSettings(prev => ({ ...prev, aiOverlayEnabled: e.target.checked }))}
+                      />
+                      Enable real-time object detection overlays
                     </label>
                   </Card>
                 </div>

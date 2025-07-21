@@ -1,5 +1,5 @@
 
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { RotateCcw, Minimize2, Maximize2, Loader } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -7,6 +7,9 @@ import { AnimationWrapper, useAnimation, type AnimationType } from './AnimationW
 import { ErrorBoundary } from './ErrorBoundary';
 import { handleCameraError } from '@/lib/errorHandling';
 import { LoadingIndicator } from './LoadingIndicator';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import '@tensorflow/tfjs';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface CameraPreviewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -220,6 +223,44 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
     return `${baseClasses} ${opacityClass} ${objectFitClass}`;
   };
 
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const [model, setModel] = useState<any>(null);
+  const { settings } = useSettings();
+
+  // Load COCO-SSD model once
+  useEffect(() => {
+    if (!settings?.aiOverlayEnabled) return;
+    cocoSsd.load().then(setModel);
+  }, [settings?.aiOverlayEnabled]);
+
+  // Run detection loop
+  useEffect(() => {
+    if (!model || !videoRef.current || !settings?.aiOverlayEnabled) return;
+    let animationId: number;
+    const detectFrame = async () => {
+      if (!videoRef.current || !overlayRef.current) return;
+      const predictions = await model.detect(videoRef.current);
+      drawPredictions(predictions);
+      animationId = requestAnimationFrame(detectFrame);
+    };
+    detectFrame();
+    return () => cancelAnimationFrame(animationId);
+  }, [model, videoRef.current, settings?.aiOverlayEnabled]);
+
+  const drawPredictions = (predictions: any[]) => {
+    const ctx = overlayRef.current?.getContext('2d');
+    if (!ctx || !videoRef.current) return;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    predictions.forEach(pred => {
+      ctx.strokeStyle = '#00FF00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(...pred.bbox);
+      ctx.fillStyle = '#00FF00';
+      ctx.font = '16px Arial';
+      ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] - 5);
+    });
+  };
+
   return (
     <Card 
       className={`relative transition-all duration-300 ${
@@ -279,6 +320,9 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
             onClick={handleVideoTap}
             onTouchEnd={handleVideoTap}
           />
+          {settings?.aiOverlayEnabled && (
+            <canvas ref={overlayRef} className='absolute top-0 left-0 pointer-events-none' width={videoRef.current?.videoWidth} height={videoRef.current?.videoHeight} />
+          )}
         </AnimationWrapper>
         
         {/* Top Left - Minimize/Maximize Button */}
