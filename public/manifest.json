@@ -8,5 +8,17 @@
   "start_url": ".",
   "display": "standalone",
   "background_color": "#fff",
-  "theme_color": "#3B82F6"
+  "theme_color": "#3B82F6",
+  "shortcuts": [
+    {
+      "name": "Open Camera",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Open Gallery",
+      "url": "/gallery",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }
