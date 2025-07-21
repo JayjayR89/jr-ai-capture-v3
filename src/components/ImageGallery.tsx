@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 import { TTSControls } from './TTSControls';
+import { exportAsZip, exportAsCSV, exportAsDocx } from '@/lib/exportUtils';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -27,6 +28,8 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   const [selectedImages, setSelectedImages] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState('zip');
 
   const formatDescription = (description: string) => {
     // Enhanced markdown-like formatting for better readability
@@ -138,6 +141,13 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
       document.execCommand('copy');
       document.body.removeChild(textArea);
     }
+  };
+
+  const handleExport = async (format) => {
+    if (format === 'zip') await exportAsZip(images);
+    else if (format === 'csv') exportAsCSV(images);
+    else if (format === 'docx') await exportAsDocx(images);
+    setExportModalOpen(false);
   };
 
   if (images.length === 0) return null;
@@ -363,6 +373,21 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
           )}
         </DialogContent>
       </Dialog>
+
+      {exportModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
+          <div className="bg-white rounded shadow-lg p-6 w-full max-w-xs relative">
+            <button className="absolute top-2 right-2 text-lg" onClick={() => setExportModalOpen(false)} aria-label="Close">✕</button>
+            <h3 className="text-lg font-bold mb-4">Export Captures</h3>
+            <select value={exportFormat} onChange={e => setExportFormat(e.target.value)} className="border rounded p-2 w-full mb-4">
+              <option value='zip'>ZIP (images + descriptions)</option>
+              <option value='csv'>CSV (descriptions)</option>
+              <option value='docx'>DOCX (Word)</option>
+            </select>
+            <button onClick={() => handleExport(exportFormat)} className="bg-blue-600 text-white px-3 py-1 rounded w-full">Export</button>
+          </div>
+        </div>
+      )}
     </>
   );
 };
