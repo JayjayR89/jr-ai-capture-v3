@@ -14,6 +14,8 @@ interface CapturedImage {
   dataUrl: string;
   timestamp: Date;
   description?: string;
+  tags?: string[];
+  notes?: string;
 }
 
 interface ImageGalleryProps {
@@ -30,6 +32,13 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
   const [expandedPreview, setExpandedPreview] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportFormat, setExportFormat] = useState('zip');
+  const [exporting, setExporting] = useState(false);
+  const [exportFilename, setExportFilename] = useState('captures');
+  const [csvDelimiter, setCsvDelimiter] = useState(',');
+  const [docxStyle, setDocxStyle] = useState('default');
+  const [exportPreview, setExportPreview] = useState(null);
+  const [exportHistory, setExportHistory] = useState(() => JSON.parse(localStorage.getItem('exportHistory') || '[]'));
+  const [selectAll, setSelectAll] = useState(false);
 
   const formatDescription = (description: string) => {
     // Enhanced markdown-like formatting for better readability
@@ -143,11 +152,50 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
     }
   };
 
-  const handleExport = async (format) => {
-    if (format === 'zip') await exportAsZip(images);
-    else if (format === 'csv') exportAsCSV(images);
-    else if (format === 'docx') await exportAsDocx(images);
+  // Multi-select logic
+  const handleSelect = (idx: number) => {
+    setSelectedImages(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+  const handleSelectAll = () => {
+    if (selectAll) setSelectedImages(new Set());
+    else setSelectedImages(new Set(images.map((_, i) => i)));
+    setSelectAll(!selectAll);
+  };
+
+  // Export handler
+  const handleExport = async (format, previewOnly = false) => {
+    setExporting(true);
+    const toExport = Array.from(selectedImages).length > 0 ? Array.from(selectedImages).map(i => images[i]) : images;
+    // Add dummy metadata if missing
+    toExport.forEach(img => {
+      if (!img.timestamp) img.timestamp = new Date();
+      if (!img.tags) img.tags = [];
+      if (!img.notes) img.notes = '';
+    });
+    if (previewOnly) {
+      setExportPreview(toExport.slice(0, 3));
+      setExporting(false);
+      return;
+    }
+    let filename = exportFilename || 'captures';
+    if (format === 'zip') await exportAsZip(toExport, filename);
+    else if (format === 'csv') exportAsCSV(toExport, filename, csvDelimiter);
+    else if (format === 'docx') await exportAsDocx(toExport, filename, docxStyle);
+    setExporting(false);
     setExportModalOpen(false);
+    // Save export history
+    const newHistory = [{ date: new Date().toLocaleString(), format, filename, count: toExport.length }, ...exportHistory].slice(0, 10);
+    setExportHistory(newHistory);
+    localStorage.setItem('exportHistory', JSON.stringify(newHistory));
+  };
+
+  // Cloud export stubs
+  const handleCloudExport = (provider) => {
+    alert(`Cloud export to ${provider} coming soon!`);
   };
 
   if (images.length === 0) return null;
@@ -235,6 +283,7 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
               }`}
             >
               <div className="relative">
+                <input type="checkbox" checked={selectedImages.has(index)} onChange={() => handleSelect(index)} className="absolute top-2 left-2 z-10" aria-label={`Select image ${index + 1}`} />
                 <img
                   src={image.dataUrl}
                   alt={`Capture ${index + 1}`}
@@ -376,15 +425,64 @@ export const ImageGallery: React.FC<ImageGalleryProps> = ({ images, onExportImag
 
       {exportModalOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
-          <div className="bg-white rounded shadow-lg p-6 w-full max-w-xs relative">
+          <div className="bg-white rounded shadow-lg p-6 w-full max-w-xs relative" role="dialog" aria-modal="true" aria-label="Export modal">
             <button className="absolute top-2 right-2 text-lg" onClick={() => setExportModalOpen(false)} aria-label="Close">✕</button>
             <h3 className="text-lg font-bold mb-4">Export Captures</h3>
-            <select value={exportFormat} onChange={e => setExportFormat(e.target.value)} className="border rounded p-2 w-full mb-4">
-              <option value='zip'>ZIP (images + descriptions)</option>
-              <option value='csv'>CSV (descriptions)</option>
+            <label className="block mb-1 font-semibold" htmlFor="export-filename">Filename</label>
+            <input id="export-filename" value={exportFilename} onChange={e => setExportFilename(e.target.value)} className="border rounded p-2 w-full mb-2" aria-label="Export filename" />
+            <label className="block mb-1 font-semibold" htmlFor="export-format">Format</label>
+            <select id="export-format" value={exportFormat} onChange={e => setExportFormat(e.target.value)} className="border rounded p-2 w-full mb-2" aria-label="Export format">
+              <option value='zip'>ZIP (images + descriptions + metadata)</option>
+              <option value='csv'>CSV (descriptions + metadata)</option>
               <option value='docx'>DOCX (Word)</option>
             </select>
-            <button onClick={() => handleExport(exportFormat)} className="bg-blue-600 text-white px-3 py-1 rounded w-full">Export</button>
+            {exportFormat === 'csv' && (
+              <div className="mb-2">
+                <label className="block mb-1 font-semibold" htmlFor="csv-delim">CSV Delimiter</label>
+                <select id="csv-delim" value={csvDelimiter} onChange={e => setCsvDelimiter(e.target.value)} className="border rounded p-2 w-full" aria-label="CSV delimiter">
+                  <option value=",">Comma (,)</option>
+                  <option value=";">Semicolon (;)</option>
+                  <option value="\t">Tab</option>
+                </select>
+              </div>
+            )}
+            {exportFormat === 'docx' && (
+              <div className="mb-2">
+                <label className="block mb-1 font-semibold" htmlFor="docx-style">DOCX Style</label>
+                <select id="docx-style" value={docxStyle} onChange={e => setDocxStyle(e.target.value)} className="border rounded p-2 w-full" aria-label="DOCX style">
+                  <option value="default">Default</option>
+                  <option value="compact">Compact</option>
+                </select>
+              </div>
+            )}
+            <div className="flex gap-2 mb-2">
+              <button onClick={() => handleCloudExport('Google Drive')} className="bg-gray-200 px-2 py-1 rounded" aria-label="Export to Google Drive">Google Drive</button>
+              <button onClick={() => handleCloudExport('Dropbox')} className="bg-gray-200 px-2 py-1 rounded" aria-label="Export to Dropbox">Dropbox</button>
+            </div>
+            <button onClick={() => handleExport(exportFormat, true)} className="bg-gray-200 px-2 py-1 rounded mb-2" aria-label="Preview export">Preview</button>
+            <button onClick={() => handleExport(exportFormat)} className="bg-blue-600 text-white px-3 py-1 rounded w-full" aria-label="Export now" disabled={exporting}>{exporting ? 'Exporting...' : 'Export'}</button>
+            {exporting && <div className="mt-2 text-center" role="status" aria-live="polite">Exporting, please wait...</div>}
+            {exportPreview && (
+              <div className="mt-2 border-t pt-2">
+                <h4 className="font-semibold mb-1">Preview</h4>
+                {exportPreview.map((img, i) => (
+                  <div key={i} className="mb-2">
+                    <img src={img.dataUrl} alt="Preview" className="w-16 h-16 object-cover inline-block mr-2" />
+                    <span className="text-xs">{img.description?.slice(0, 40)}...</span>
+                    <div className="text-xs text-gray-500">{img.timestamp?.toLocaleString()} | Tags: {img.tags?.join(', ')} | Notes: {img.notes}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="mt-2 border-t pt-2">
+              <h4 className="font-semibold mb-1">Export History</h4>
+              <ul className="text-xs max-h-20 overflow-y-auto">
+                {exportHistory.length === 0 && <li>No exports yet.</li>}
+                {exportHistory.map((h, i) => (
+                  <li key={i}>{h.date} - {h.format.toUpperCase()} - {h.filename} ({h.count})</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       )}
