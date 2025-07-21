@@ -8,6 +8,7 @@ export interface Settings {
   aiOverlayEnabled: boolean;
   faceOverlayEnabled: boolean;
   detectionIntervalMs: number;
+  detectionConfidence: number;
 }
 
 const defaultSettings: Settings = {
@@ -18,6 +19,7 @@ const defaultSettings: Settings = {
   aiOverlayEnabled: false,
   faceOverlayEnabled: false,
   detectionIntervalMs: 200,
+  detectionConfidence: 0.5,
 };
 
 const SettingsContext = createContext<{

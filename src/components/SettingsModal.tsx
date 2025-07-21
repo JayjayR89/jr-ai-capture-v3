@@ -91,6 +91,7 @@ interface Settings {
   aiOverlayEnabled: boolean;
   faceOverlayEnabled: boolean;
   detectionIntervalMs: number;
+  detectionConfidence: number;
 }
 
 interface SettingsModalProps {
@@ -175,7 +176,8 @@ const defaultSettings: Settings = {
   voiceCommandsEnabled: false,
   aiOverlayEnabled: false,
   faceOverlayEnabled: false,
-  detectionIntervalMs: 500
+  detectionIntervalMs: 500,
+  detectionConfidence: 0.5
 };
 
 const SettingsModalInner: React.FC<SettingsModalProps> = ({
@@ -226,7 +228,8 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
           voiceCommandsEnabled: savedSettings.voiceCommandsEnabled || defaultSettings.voiceCommandsEnabled,
           aiOverlayEnabled: savedSettings.aiOverlayEnabled || defaultSettings.aiOverlayEnabled,
           faceOverlayEnabled: savedSettings.faceOverlayEnabled || defaultSettings.faceOverlayEnabled,
-          detectionIntervalMs: savedSettings.detectionIntervalMs || defaultSettings.detectionIntervalMs
+          detectionIntervalMs: savedSettings.detectionIntervalMs || defaultSettings.detectionIntervalMs,
+          detectionConfidence: savedSettings.detectionConfidence || defaultSettings.detectionConfidence
         };
         setSettings(validSettings);
         setTempSettings(validSettings);
@@ -917,6 +920,18 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
                       onChange={e => setTempSettings(prev => ({ ...prev, detectionIntervalMs: Number(e.target.value) }))}
                     />
                     <span className="ml-2 text-xs">{tempSettings.detectionIntervalMs} ms</span>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Detection Confidence Threshold</h3>
+                    <input
+                      type="range"
+                      min={0.1}
+                      max={1}
+                      step={0.05}
+                      value={tempSettings.detectionConfidence}
+                      onChange={e => setTempSettings(prev => ({ ...prev, detectionConfidence: Number(e.target.value) }))}
+                    />
+                    <span className="ml-2 text-xs">{(tempSettings.detectionConfidence * 100).toFixed(0)}%</span>
                   </Card>
                 </div>
                 </div>
