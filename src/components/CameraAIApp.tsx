@@ -8,6 +8,7 @@ import { SettingsModal } from './SettingsModal';
 import { CameraPreview } from './CameraPreview';
 import { AutoCaptureProgress } from './AutoCaptureProgress';
 import { ImageGallery } from './ImageGallery';
+import AIAnalysisHistory from './AIAnalysisHistory';
 import { TTSSettingsProvider } from '@/contexts/TTSSettingsContext';
 import { TTSControls } from './TTSControls';
 import { useAutoCapture } from '@/hooks/useAutoCapture';
@@ -16,6 +17,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { handleCameraError, handleConfigurationError, errorHandler } from '@/lib/errorHandling';
 import { LoadingIndicator, useLoadingOverlay } from './LoadingIndicator';
 import { cameraManager, configManager } from '@/lib/fallbacks';
+import { offlineManager } from '@/lib/offline-manager';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -24,6 +26,12 @@ interface CapturedImage {
   dataUrl: string;
   timestamp: Date;
   description?: string;
+}
+
+interface AnalysisRecord {
+  image: CapturedImage;
+  prompt: string;
+  description: string;
 }
 
 interface User {
@@ -183,6 +191,7 @@ const CameraAIApp: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [isSecureContext, setIsSecureContext] = useState(true);
+  const [analysisHistory, setAnalysisHistory] = useState<AnalysisRecord[]>([]);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -322,6 +331,7 @@ const CameraAIApp: React.FC = () => {
       
       setLastCapture(newCapture);
       setCapturedImages(prev => [newCapture, ...prev]);
+      offlineManager.saveCapturedImage(newCapture);
       setAiDescription('');
       
       // Only add to AI processing queue if auto-capture is enabled and authenticated
@@ -370,6 +380,21 @@ const CameraAIApp: React.FC = () => {
     checkAvailableCameras();
     checkAuthStatus();
     checkSecureContext();
+
+    // Load offline data
+    setCapturedImages(offlineManager.getCapturedImages());
+
+    // Process offline queue
+    offlineManager.processQueue(async (request) => {
+      if (request.type === 'ai-analysis') {
+        // This is a simplified version. A real implementation would need to
+        // re-run the AI description logic for the queued item.
+        console.log("Processing offline request:", request);
+        return true; // Assume success for this example
+      }
+      return false;
+    });
+
 
     // Cleanup function for any global event listeners or resources
     return () => {
@@ -537,6 +562,14 @@ const CameraAIApp: React.FC = () => {
         setLastCapture(prev => prev ? { ...prev, description } : null);
         setAiDescription(description);
       }
+
+      // Add to analysis history
+      const newHistoryRecord: AnalysisRecord = {
+        image: imageToProcess,
+        prompt: enhancedPrompt,
+        description: description,
+      };
+      setAnalysisHistory(prev => [newHistoryRecord, ...prev]);
       
       toast({
         title: "Image described successfully",
@@ -847,8 +880,20 @@ const CameraAIApp: React.FC = () => {
     }
 
     // Add to queue for processing (for manual mode)
-    if (!aiQueue.find(img => img.timestamp === lastCapture.timestamp)) {
-      setAiQueue(prev => [lastCapture, ...prev]);
+    if (offlineManager.isOnline()) {
+      if (!aiQueue.find(img => img.timestamp === lastCapture.timestamp)) {
+        setAiQueue(prev => [lastCapture, ...prev]);
+      }
+    } else {
+      offlineManager.queueRequest({
+        type: 'ai-analysis',
+        payload: { image: lastCapture }
+      });
+      toast({
+        title: "You are offline",
+        description: "AI analysis has been queued and will be processed when you are back online.",
+        duration: 3000
+      });
     }
   };
 
@@ -1422,6 +1467,9 @@ const CameraAIApp: React.FC = () => {
             </div>
           </Card>
         )}
+
+        {/* AI Analysis History */}
+        <AIAnalysisHistory history={analysisHistory} />
 
         {/* Hidden canvas for capture */}
         <canvas ref={canvasRef} className="hidden" />

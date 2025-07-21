@@ -6,21 +6,27 @@ import { SettingsModal } from '../SettingsModal'
 import { TTSSettingsProvider } from '@/contexts/TTSSettingsContext'
 
 // Mock UI components
-vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ children, open }: any) => open ? <div data-testid="dialog">{children}</div> : null,
-  DialogContent: ({ children, className }: any) => (
-    <div data-testid="dialog-content" className={className}>
-      {children}
-    </div>
-  ),
-  DialogHeader: ({ children }: any) => <div data-testid="dialog-header">{children}</div>,
-  DialogTitle: ({ children }: any) => <h2 data-testid="dialog-title">{children}</h2>,
-  DialogFooter: ({ children, className }: any) => (
-    <div data-testid="dialog-footer" className={className}>
-      {children}
-    </div>
-  )
-}))
+vi.mock('@/components/ui/dialog', async () => {
+  const original = await vi.importActual('@/components/ui/dialog');
+  const Dialog = ({ children, open }: any) => (
+    open ? <div>{children}</div> : null
+  );
+  Dialog.displayName = "Dialog";
+  const DialogContent = ({children}: any) => (
+    <div>{children}</div>
+  );
+  DialogContent.displayName = "DialogContent";
+
+  return {
+    ...original,
+    Dialog,
+    DialogContent,
+    DialogHeader: ({ children }: any) => <div>{children}</div>,
+    DialogTitle: ({ children }: any) => <h2>{children}</h2>,
+    DialogDescription: ({ children }: any) => <p>{children}</p>,
+    DialogFooter: ({ children }: any) => <div>{children}</div>,
+  };
+});
 
 vi.mock('@/components/ui/scroll-area', () => ({
   ScrollArea: ({ children, className }: any) => (

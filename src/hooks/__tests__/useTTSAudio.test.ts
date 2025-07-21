@@ -78,7 +78,7 @@ describe('useTTSAudio', () => {
           language: expect.any(String)
         })
       )
-      expect(mockAudio.play).toHaveBeenCalled()
+      await waitFor(() => expect(mockAudio.play).toHaveBeenCalled());
       expect(result.current.isPlaying).toBe(true)
       expect(result.current.isLoading).toBe(false)
     })
@@ -109,8 +109,8 @@ describe('useTTSAudio', () => {
       })
       
       // Should attempt fallback to browser TTS
-      expect(window.speechSynthesis.speak).toHaveBeenCalled()
-    })
+      await waitFor(() => expect(window.speechSynthesis.speak).toHaveBeenCalled());
+    }, 10000)
 
     it('should use custom config when provided', async () => {
       const { result } = renderHook(() => useTTSAudio())

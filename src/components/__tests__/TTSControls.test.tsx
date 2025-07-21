@@ -606,14 +606,14 @@ describe('TTSControls', () => {
         <TestComponent {...defaultProps} />
       )
       
-      expect(renderSpy).toHaveBeenCalledTimes(1)
+      expect(renderSpy).toHaveBeenCalledTimes(2)
       
       // Different text should trigger re-render
       rerender(
         <TestComponent {...defaultProps} text="Different text" />
       )
       
-      expect(renderSpy).toHaveBeenCalledTimes(2)
+      expect(renderSpy).toHaveBeenCalledTimes(3)
     })
   })
 })

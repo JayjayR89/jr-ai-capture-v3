@@ -199,8 +199,7 @@ describe('AudioScrubBar', () => {
       
       const sliderInput = screen.getByTestId('slider-input')
       
-      await user.clear(sliderInput)
-      await user.type(sliderInput, '50')
+      fireEvent.change(sliderInput, { target: { value: '50' } })
       
       expect(mockOnSeek).toHaveBeenCalledWith(0) // 50% of 0 seconds = 0 seconds
     })

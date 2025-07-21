@@ -6,8 +6,8 @@ import { LoadingIndicator, StatusMessage } from '../LoadingIndicator';
 import { ttsManager, animationManager, cameraManager } from '@/lib/fallbacks';
 
 // Mock toast
-jest.mock('@/hooks/use-toast', () => ({
-  toast: jest.fn()
+vi.mock('@/hooks/use-toast', () => ({
+  toast: vi.fn()
 }));
 
 // Mock console methods
@@ -15,9 +15,9 @@ const originalConsoleError = console.error;
 const originalConsoleWarn = console.warn;
 
 beforeEach(() => {
-  console.error = jest.fn();
-  console.warn = jest.fn();
-  jest.clearAllMocks();
+  console.error = vi.fn();
+  console.warn = vi.fn();
+  vi.clearAllMocks();
 });
 
 afterEach(() => {
@@ -59,7 +59,7 @@ describe('ErrorBoundary', () => {
   });
 
   test('calls onError callback', () => {
-    const onError = jest.fn();
+    const onError = vi.fn();
     
     render(
       <ErrorBoundary onError={onError}>

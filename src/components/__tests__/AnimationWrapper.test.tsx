@@ -5,15 +5,15 @@ import { AnimationWrapper, useAnimation, shouldDisableAnimations, detectLowPerfo
 // Mock matchMedia for testing
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(), // deprecated
-    removeListener: jest.fn(), // deprecated
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 
@@ -25,7 +25,7 @@ Object.defineProperty(navigator, 'hardwareConcurrency', {
 
 describe('AnimationWrapper', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders children correctly', () => {
@@ -51,15 +51,15 @@ describe('AnimationWrapper', () => {
 
   test('respects reduced motion preference', () => {
     // Mock reduced motion preference
-    (window.matchMedia as jest.Mock).mockImplementation(query => ({
+    (window.matchMedia as vi.Mock).mockImplementation(query => ({
       matches: query === '(prefers-reduced-motion: reduce)',
       media: query,
       onchange: null,
-      addListener: jest.fn(),
-      removeListener: jest.fn(),
-      addEventListener: jest.fn(),
-      removeEventListener: jest.fn(),
-      dispatchEvent: jest.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
     }));
 
     const { container } = render(
@@ -74,7 +74,7 @@ describe('AnimationWrapper', () => {
   });
 
   test('calls onAnimationComplete callback', (done) => {
-    const mockCallback = jest.fn(() => {
+    const mockCallback = vi.fn(() => {
       expect(mockCallback).toHaveBeenCalled();
       done();
     });

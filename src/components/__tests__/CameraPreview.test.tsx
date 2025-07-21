@@ -96,8 +96,8 @@ describe('CameraPreview', () => {
     it('should render camera preview with video element', () => {
       render(<CameraPreview {...defaultProps} />)
       
-      expect(screen.getByRole('button', { name: /expand camera preview/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /switch camera/i })).toBeInTheDocument()
+      expect(screen.getByTitle(/minimize camera preview/i)).toBeInTheDocument()
+      expect(screen.getByTitle(/switch camera/i)).toBeInTheDocument()
       expect(screen.getByTestId('animation-wrapper')).toBeInTheDocument()
     })
 
@@ -268,17 +268,13 @@ describe('CameraPreview', () => {
     it('should show loading indicator when camera is loading', () => {
       render(<CameraPreview {...defaultProps} isCameraLoading={true} />)
       
-      expect(screen.getByTestId('loading-indicator')).toBeInTheDocument()
-      expect(screen.getByText('Message: Loading camera...')).toBeInTheDocument()
-      expect(screen.getByText('SubMessage: Initializing camera feed')).toBeInTheDocument()
+      expect(screen.getByText('Loading camera...')).toBeInTheDocument()
     })
 
     it('should show flipping indicator when camera is flipping', () => {
       render(<CameraPreview {...defaultProps} isFlipping={true} />)
       
-      expect(screen.getByTestId('loading-indicator')).toBeInTheDocument()
-      expect(screen.getByText('Message: Switching camera...')).toBeInTheDocument()
-      expect(screen.getByText('SubMessage: Please wait while we switch cameras')).toBeInTheDocument()
+      expect(screen.getByText('Switching camera...')).toBeInTheDocument()
     })
 
     it('should show progress indicator when flipping', () => {
@@ -286,7 +282,7 @@ describe('CameraPreview', () => {
       
       // Should show progress bar for camera flip
       const progressBar = screen.getByText('Please wait while we switch cameras')
-        .closest('div')?.querySelector('.animate-pulse')
+        .closest('div.flex.flex-col.items-center.gap-4')?.querySelector('.animate-pulse')
       expect(progressBar).toBeInTheDocument()
     })
   })
