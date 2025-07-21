@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface CapturedImage {
   dataUrl: string;
@@ -83,6 +84,10 @@ interface Settings {
   aiRandomVehicles: boolean;
   ttsEngine: 'standard' | 'neural' | 'generative';
   ttsVoice: TTSVoice;
+  language: string;
+  customAIEndpoint: string;
+  customAIApiKey: string;
+  voiceCommandsEnabled: boolean;
 }
 
 interface SettingsModalProps {
@@ -160,7 +165,11 @@ const defaultSettings: Settings = {
     name: 'Joanna',
     engine: 'neural',
     displayName: 'Joanna (US, Neural)'
-  }
+  },
+  language: 'en',
+  customAIEndpoint: '',
+  customAIApiKey: '',
+  voiceCommandsEnabled: false
 };
 
 const SettingsModalInner: React.FC<SettingsModalProps> = ({
@@ -175,6 +184,7 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
   const [tempSettings, setTempSettings] = useState<Settings>(defaultSettings);
   const [isExporting, setIsExporting] = useState(false);
   const [expandedPreview, setExpandedPreview] = useState(false);
+  const { settings: contextSettings, updateSettings } = useSettings();
 
   // Load settings on mount
   useEffect(() => {
@@ -203,7 +213,11 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
           theme: savedSettings.theme === 'light' ? 'light' : 'dark',
           // Ensure TTS settings have proper defaults for backward compatibility
           ttsEngine: savedSettings.ttsEngine || defaultSettings.ttsEngine,
-          ttsVoice: savedSettings.ttsVoice || defaultSettings.ttsVoice
+          ttsVoice: savedSettings.ttsVoice || defaultSettings.ttsVoice,
+          language: savedSettings.language || defaultSettings.language,
+          customAIEndpoint: savedSettings.customAIEndpoint || defaultSettings.customAIEndpoint,
+          customAIApiKey: savedSettings.customAIApiKey || defaultSettings.customAIApiKey,
+          voiceCommandsEnabled: savedSettings.voiceCommandsEnabled || defaultSettings.voiceCommandsEnabled
         };
         setSettings(validSettings);
         setTempSettings(validSettings);
@@ -819,6 +833,47 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
                     >
                       Reset to Defaults
                     </Button>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Language</h3>
+                    <select
+                      value={tempSettings.language}
+                      onChange={e => setTempSettings(prev => ({ ...prev, language: e.target.value }))}
+                      className="border rounded p-2"
+                    >
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="fr">French</option>
+                      {/* Add more languages as needed */}
+                    </select>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Custom AI Endpoint</h3>
+                    <input
+                      type="text"
+                      placeholder="API Endpoint URL"
+                      value={tempSettings.customAIEndpoint}
+                      onChange={e => setTempSettings(prev => ({ ...prev, customAIEndpoint: e.target.value }))}
+                      className="border rounded p-2 w-full mb-2"
+                    />
+                    <input
+                      type="text"
+                      placeholder="API Key (optional)"
+                      value={tempSettings.customAIApiKey}
+                      onChange={e => setTempSettings(prev => ({ ...prev, customAIApiKey: e.target.value }))}
+                      className="border rounded p-2 w-full"
+                    />
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Voice Commands</h3>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={tempSettings.voiceCommandsEnabled}
+                        onChange={e => setTempSettings(prev => ({ ...prev, voiceCommandsEnabled: e.target.checked }))}
+                      />
+                      Enable Voice Commands
+                    </label>
                   </Card>
                 </div>
                 </div>
