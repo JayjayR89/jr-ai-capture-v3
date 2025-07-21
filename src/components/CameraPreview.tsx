@@ -347,6 +347,20 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
           </div>
         )}
         
+        {(settings?.aiOverlayEnabled || settings?.faceOverlayEnabled) && (
+          <div style={{ position: 'absolute', top: 8, left: 8, zIndex: 10, background: 'rgba(0,0,0,0.6)', borderRadius: 8, padding: '8px 12px', color: '#fff', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#FF3B3B', borderRadius: 2, marginRight: 4 }} /> Person
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#00FF00', borderRadius: 2, marginRight: 4 }} /> Object
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#FFD700', borderRadius: 2, marginRight: 4 }} /> Face
+            </div>
+          </div>
+        )}
+
         <AnimationWrapper
           isAnimating={animation.isAnimating}
           animationType={animationType}
