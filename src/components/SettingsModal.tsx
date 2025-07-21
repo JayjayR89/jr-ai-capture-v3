@@ -1646,6 +1646,28 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
             <Button variant="outline" onClick={cancelChanges} className="flex-1">
               Cancel
             </Button>
+            <Button onClick={() => setTempSettings(prev => ({
+              ...prev,
+              aiPersonAnalysis: true,
+              aiPersonGender: true,
+              aiPersonAge: true,
+              aiPersonMood: true,
+              aiSceneryAnalysis: true,
+              aiSceneryTime: true,
+              aiSceneryWeather: true,
+              aiSceneryLocation: true,
+              aiObjectAnalysis: true,
+              aiObjectName: true,
+              aiObjectSize: true,
+              aiObjectText: true,
+              aiObjectUses: true,
+              aiObjectFacts: true,
+              aiRandomAnalysis: true,
+              aiRandomColors: true,
+              aiRandomLocation: true,
+              aiRandomPeopleCount: true,
+              aiRandomVehicles: true,
+            }))} className="mb-2" aria-label="Enable all AI analysis features">Select All</Button>
             <Button onClick={() => window.dispatchEvent(new CustomEvent('show-tutorial'))} className="settings-btn mt-2" aria-label="Show tutorial">Show Tutorial</Button>
             <Button onClick={saveSettings} className="flex-1">
               Save Settings

@@ -297,7 +297,7 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
     };
     detectLoop();
     return () => { running = false; };
-  }, [model, faceModel, videoRef.current, settings?.aiOverlayEnabled, settings?.faceOverlayEnabled, settings?.detectionIntervalMs, settings?.detectionConfidence]);
+  }, [model, faceModel, videoRef.current, settings?.aiOverlayEnabled, settings?.faceOverlayEnabled, settings?.detectionIntervalMs, settings?.detectionConfidence, legendOpen]);
 
   // Overlay export
   const exportOverlayImage = () => {
@@ -422,6 +422,7 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
         )}
         {(settings?.aiOverlayEnabled || settings?.faceOverlayEnabled) && legendOpen && (
           <div
+            className="overlay-legend"
             style={{ position: 'absolute', top: legendPos.y, left: legendPos.x, zIndex: 20, background: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 120, cursor: dragging ? 'grabbing' : 'grab' }}
             tabIndex={0}
             aria-label="Detection legend"
@@ -477,7 +478,7 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
             onTouchEnd={handleVideoTap}
           />
           {settings?.aiOverlayEnabled && (
-            <canvas ref={overlayRef} className='absolute top-0 left-0 pointer-events-none' width={videoRef.current?.videoWidth} height={videoRef.current?.videoHeight} />
+            <canvas ref={overlayRef} className="absolute top-0 left-0 pointer-events-none" width={videoRef.current?.videoWidth || 640} height={videoRef.current?.videoHeight || 480} />
           )}
         </AnimationWrapper>
         
