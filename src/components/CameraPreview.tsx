@@ -10,6 +10,7 @@ import { LoadingIndicator } from './LoadingIndicator';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 import { useSettings } from '@/contexts/SettingsContext';
+import * as blazeface from '@tensorflow-models/blazeface';
 
 interface CameraPreviewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -226,6 +227,7 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const [model, setModel] = useState<any>(null);
   const { settings } = useSettings();
+  const [faceModel, setFaceModel] = useState<any>(null);
 
   // Load COCO-SSD model once
   useEffect(() => {
@@ -233,31 +235,76 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
     cocoSsd.load().then(setModel);
   }, [settings?.aiOverlayEnabled]);
 
-  // Run detection loop
+  // Load BlazeFace model for face detection
   useEffect(() => {
-    if (!model || !videoRef.current || !settings?.aiOverlayEnabled) return;
-    let animationId: number;
-    const detectFrame = async () => {
-      if (!videoRef.current || !overlayRef.current) return;
-      const predictions = await model.detect(videoRef.current);
-      drawPredictions(predictions);
-      animationId = requestAnimationFrame(detectFrame);
-    };
-    detectFrame();
-    return () => cancelAnimationFrame(animationId);
-  }, [model, videoRef.current, settings?.aiOverlayEnabled]);
+    if (!settings?.faceOverlayEnabled) return;
+    blazeface.load().then(setFaceModel);
+  }, [settings?.faceOverlayEnabled]);
 
-  const drawPredictions = (predictions: any[]) => {
-    const ctx = overlayRef.current?.getContext('2d');
-    if (!ctx || !videoRef.current) return;
-    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  // Run detection loop for both object and face detection
+  useEffect(() => {
+    if ((!model && !faceModel) || !videoRef.current || (!settings?.aiOverlayEnabled && !settings?.faceOverlayEnabled)) return;
+    let running = true;
+    const detectLoop = async () => {
+      if (!running || !videoRef.current || !overlayRef.current) return;
+      const ctx = overlayRef.current.getContext('2d');
+      ctx?.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      // Object detection
+      if (settings?.aiOverlayEnabled && model) {
+        const predictions = await model.detect(videoRef.current);
+        drawObjectPredictions(predictions, ctx);
+      }
+      // Face detection
+      if (settings?.faceOverlayEnabled && faceModel) {
+        const faces = await faceModel.estimateFaces(videoRef.current, false);
+        drawFacePredictions(faces, ctx);
+      }
+      setTimeout(detectLoop, settings?.detectionIntervalMs || 200);
+    };
+    detectLoop();
+    return () => { running = false; };
+  }, [model, faceModel, videoRef.current, settings?.aiOverlayEnabled, settings?.faceOverlayEnabled, settings?.detectionIntervalMs]);
+
+  const drawObjectPredictions = (predictions: any[], ctx: CanvasRenderingContext2D | null) => {
+    if (!ctx) return;
     predictions.forEach(pred => {
-      ctx.strokeStyle = '#00FF00';
-      ctx.lineWidth = 2;
+      // Color by class
+      const color = pred.class === 'person' ? '#FF3B3B' : '#00FF00';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]); // dashed box
       ctx.strokeRect(...pred.bbox);
-      ctx.fillStyle = '#00FF00';
-      ctx.font = '16px Arial';
-      ctx.fillText(pred.class, pred.bbox[0], pred.bbox[1] - 5);
+      // Label background
+      ctx.font = 'bold 16px Arial';
+      const text = `${pred.class} (${Math.round(pred.score * 100)}%)`;
+      const textWidth = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(pred.bbox[0], pred.bbox[1] - 24, textWidth + 8, 22);
+      // Label text
+      ctx.fillStyle = color;
+      ctx.fillText(text, pred.bbox[0] + 4, pred.bbox[1] - 8);
+      ctx.setLineDash([]); // reset
+    });
+  };
+
+  const drawFacePredictions = (faces: any[], ctx: CanvasRenderingContext2D | null) => {
+    if (!ctx) return;
+    faces.forEach(pred => {
+      const [x, y, w, h] = [
+        pred.topLeft[0], pred.topLeft[1],
+        pred.bottomRight[0] - pred.topLeft[0],
+        pred.bottomRight[1] - pred.topLeft[1]
+      ];
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.font = 'bold 14px Arial';
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x, y - 20, 48, 18);
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText('Face', x + 4, y - 6);
+      ctx.setLineDash([]);
     });
   };
 

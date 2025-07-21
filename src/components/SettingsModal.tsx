@@ -89,6 +89,8 @@ interface Settings {
   customAIApiKey: string;
   voiceCommandsEnabled: boolean;
   aiOverlayEnabled: boolean;
+  faceOverlayEnabled: boolean;
+  detectionIntervalMs: number;
 }
 
 interface SettingsModalProps {
@@ -171,7 +173,9 @@ const defaultSettings: Settings = {
   customAIEndpoint: '',
   customAIApiKey: '',
   voiceCommandsEnabled: false,
-  aiOverlayEnabled: false
+  aiOverlayEnabled: false,
+  faceOverlayEnabled: false,
+  detectionIntervalMs: 500
 };
 
 const SettingsModalInner: React.FC<SettingsModalProps> = ({
@@ -220,7 +224,9 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
           customAIEndpoint: savedSettings.customAIEndpoint || defaultSettings.customAIEndpoint,
           customAIApiKey: savedSettings.customAIApiKey || defaultSettings.customAIApiKey,
           voiceCommandsEnabled: savedSettings.voiceCommandsEnabled || defaultSettings.voiceCommandsEnabled,
-          aiOverlayEnabled: savedSettings.aiOverlayEnabled || defaultSettings.aiOverlayEnabled
+          aiOverlayEnabled: savedSettings.aiOverlayEnabled || defaultSettings.aiOverlayEnabled,
+          faceOverlayEnabled: savedSettings.faceOverlayEnabled || defaultSettings.faceOverlayEnabled,
+          detectionIntervalMs: savedSettings.detectionIntervalMs || defaultSettings.detectionIntervalMs
         };
         setSettings(validSettings);
         setTempSettings(validSettings);
@@ -888,6 +894,29 @@ const SettingsModalInner: React.FC<SettingsModalProps> = ({
                       />
                       Enable real-time object detection overlays
                     </label>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Face Detection Overlay</h3>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={tempSettings.faceOverlayEnabled}
+                        onChange={e => setTempSettings(prev => ({ ...prev, faceOverlayEnabled: e.target.checked }))}
+                      />
+                      Enable real-time face detection overlays
+                    </label>
+                  </Card>
+                  <Card className="mb-4 p-4">
+                    <h3 className="font-semibold mb-2">Detection Frequency</h3>
+                    <input
+                      type="range"
+                      min={50}
+                      max={1000}
+                      step={50}
+                      value={tempSettings.detectionIntervalMs}
+                      onChange={e => setTempSettings(prev => ({ ...prev, detectionIntervalMs: Number(e.target.value) }))}
+                    />
+                    <span className="ml-2 text-xs">{tempSettings.detectionIntervalMs} ms</span>
                   </Card>
                 </div>
                 </div>

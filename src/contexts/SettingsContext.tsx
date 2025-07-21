@@ -6,6 +6,8 @@ export interface Settings {
   customAIApiKey: string;
   voiceCommandsEnabled: boolean;
   aiOverlayEnabled: boolean;
+  faceOverlayEnabled: boolean;
+  detectionIntervalMs: number;
 }
 
 const defaultSettings: Settings = {
@@ -14,6 +16,8 @@ const defaultSettings: Settings = {
   customAIApiKey: '',
   voiceCommandsEnabled: false,
   aiOverlayEnabled: false,
+  faceOverlayEnabled: false,
+  detectionIntervalMs: 200,
 };
 
 const SettingsContext = createContext<{
