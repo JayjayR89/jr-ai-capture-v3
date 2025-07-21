@@ -96,6 +96,7 @@ interface Settings {
   voiceCommandsEnabled: boolean;
   language: string;
   customAIEndpoint: string;
+  customAIApiKey?: string; // Added for custom AI endpoint
 }
 
 const CameraAIApp: React.FC = () => {
@@ -533,51 +534,45 @@ const CameraAIApp: React.FC = () => {
 
   const processNextAIRequest = async () => {
     if (aiQueue.length === 0 || processingAI) return;
-    
     setProcessingAI(true);
     const imageToProcess = aiQueue[0];
-    
     try {
       console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
-      
       const enhancedPrompt = buildAIPrompt();
-      
-      const response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl);
-      
-      // Handle the response as a string
+      let response;
+      if (appSettings.customAIEndpoint) {
+        // Use custom AI endpoint
+        const res = await fetch(appSettings.customAIEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(appSettings.customAIApiKey ? { 'Authorization': `Bearer ${appSettings.customAIApiKey}` } : {})
+          },
+          body: JSON.stringify({
+            prompt: enhancedPrompt,
+            image: imageToProcess.dataUrl,
+            language: appSettings.language || 'en'
+          })
+        });
+        if (!res.ok) throw new Error('Custom AI endpoint error');
+        const data = await res.json();
+        response = data.description || data.result || data.text || JSON.stringify(data);
+      } else {
+        // Default: use puter.ai.chat
+        response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl, appSettings.language || 'en');
+      }
       const description = typeof response === 'string' ? response : String(response);
-      
       console.log('AI description received:', description.substring(0, 100) + '...');
-      
-      // Update the image with description
-      setCapturedImages(prev => 
-        prev.map(img => 
-          img.timestamp === imageToProcess.timestamp 
-            ? { ...img, description }
-            : img
-        )
-      );
-      
+      setCapturedImages(prev => prev.map(img => img.timestamp === imageToProcess.timestamp ? { ...img, description } : img));
       if (lastCapture && lastCapture.timestamp === imageToProcess.timestamp) {
         setLastCapture(prev => prev ? { ...prev, description } : null);
         setAiDescription(description);
       }
-      
-      toast({
-        title: "Image described successfully",
-        description: "AI analysis complete",
-        duration: 3000
-      });
+      toast({ title: 'Image described successfully', description: 'AI analysis complete', duration: 3000 });
     } catch (error) {
       console.error('AI description error:', error);
-      toast({
-        title: "AI description failed",
-        description: "Please try again",
-        variant: "destructive",
-        duration: 3000
-      });
+      toast({ title: 'AI description failed', description: 'Please try again', variant: 'destructive', duration: 3000 });
     } finally {
-      // Remove processed image from queue
       setAiQueue(prev => prev.slice(1));
       setProcessingAI(false);
     }

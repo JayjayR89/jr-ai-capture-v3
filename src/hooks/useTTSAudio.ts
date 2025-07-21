@@ -13,6 +13,7 @@ export interface TTSVoice {
 export interface TTSConfig {
   engine: 'standard' | 'neural' | 'generative';
   voice: TTSVoice;
+  language?: string; // Optional language code
 }
 
 export interface TTSAudioState {
@@ -185,7 +186,7 @@ export const useTTSAudio = (initialConfig?: Partial<TTSConfig>): UseTTSAudioRetu
       const ttsParams = {
         voice: currentConfig.voice.name,
         engine: currentConfig.voice.engine,
-        language: currentConfig.voice.language
+        language: currentConfig.language || currentConfig.voice.language
       };
 
       console.log('Attempting TTS with configuration:', ttsParams);
