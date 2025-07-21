@@ -16,6 +16,8 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { handleCameraError, handleConfigurationError, errorHandler } from '@/lib/errorHandling';
 import { LoadingIndicator, useLoadingOverlay } from './LoadingIndicator';
 import { cameraManager, configManager } from '@/lib/fallbacks';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useVoiceCommands } from '@/hooks/useVoiceCommands';
 
 // Using Puter.com API loaded from CDN
 declare const puter: any;
@@ -91,6 +93,10 @@ interface Settings {
   aiRandomVehicles: boolean;
   ttsEngine: 'standard' | 'neural' | 'generative';
   ttsVoice: TTSVoice;
+  voiceCommandsEnabled: boolean;
+  language: string;
+  customAIEndpoint: string;
+  customAIApiKey?: string; // Added for custom AI endpoint
 }
 
 const CameraAIApp: React.FC = () => {
@@ -176,7 +182,10 @@ const CameraAIApp: React.FC = () => {
       name: 'Joanna',
       engine: 'neural',
       displayName: 'Joanna (US, Neural)'
-    }
+    },
+    voiceCommandsEnabled: false,
+    language: 'en-US',
+    customAIEndpoint: 'https://api.puter.com/v1/ai/describe'
   });
 
   // UI state
@@ -364,6 +373,23 @@ const CameraAIApp: React.FC = () => {
     isCameraOn && videoLoaded && !isCapturing
   );
 
+  const { settings: appSettings } = useSettings();
+  const handleVoiceCommand = (cmd: string) => {
+    if (cmd.includes('capture')) captureImage();
+    else if (cmd.includes('describe')) describeImage();
+    else if (cmd.includes('export')) {
+      if (lastCapture && aiDescription) exportCapture(lastCapture, aiDescription);
+    }
+    // Add next/previous/gallery navigation as needed
+  };
+  const {
+    listening: voiceListening,
+    lastCommand: lastVoiceCommand,
+    error: voiceError,
+    startListening,
+    stopListening
+  } = useVoiceCommands(handleVoiceCommand);
+
   // Load settings on mount with proper cleanup
   useEffect(() => {
     loadSettings();
@@ -508,51 +534,45 @@ const CameraAIApp: React.FC = () => {
 
   const processNextAIRequest = async () => {
     if (aiQueue.length === 0 || processingAI) return;
-    
     setProcessingAI(true);
     const imageToProcess = aiQueue[0];
-    
     try {
       console.log('Sending image to AI for description, size:', imageToProcess.dataUrl.length);
-      
       const enhancedPrompt = buildAIPrompt();
-      
-      const response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl);
-      
-      // Handle the response as a string
+      let response;
+      if (appSettings.customAIEndpoint) {
+        // Use custom AI endpoint
+        const res = await fetch(appSettings.customAIEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(appSettings.customAIApiKey ? { 'Authorization': `Bearer ${appSettings.customAIApiKey}` } : {})
+          },
+          body: JSON.stringify({
+            prompt: enhancedPrompt,
+            image: imageToProcess.dataUrl,
+            language: appSettings.language || 'en'
+          })
+        });
+        if (!res.ok) throw new Error('Custom AI endpoint error');
+        const data = await res.json();
+        response = data.description || data.result || data.text || JSON.stringify(data);
+      } else {
+        // Default: use puter.ai.chat
+        response = await puter.ai.chat(enhancedPrompt, imageToProcess.dataUrl, appSettings.language || 'en');
+      }
       const description = typeof response === 'string' ? response : String(response);
-      
       console.log('AI description received:', description.substring(0, 100) + '...');
-      
-      // Update the image with description
-      setCapturedImages(prev => 
-        prev.map(img => 
-          img.timestamp === imageToProcess.timestamp 
-            ? { ...img, description }
-            : img
-        )
-      );
-      
+      setCapturedImages(prev => prev.map(img => img.timestamp === imageToProcess.timestamp ? { ...img, description } : img));
       if (lastCapture && lastCapture.timestamp === imageToProcess.timestamp) {
         setLastCapture(prev => prev ? { ...prev, description } : null);
         setAiDescription(description);
       }
-      
-      toast({
-        title: "Image described successfully",
-        description: "AI analysis complete",
-        duration: 3000
-      });
+      toast({ title: 'Image described successfully', description: 'AI analysis complete', duration: 3000 });
     } catch (error) {
       console.error('AI description error:', error);
-      toast({
-        title: "AI description failed",
-        description: "Please try again",
-        variant: "destructive",
-        duration: 3000
-      });
+      toast({ title: 'AI description failed', description: 'Please try again', variant: 'destructive', duration: 3000 });
     } finally {
-      // Remove processed image from queue
       setAiQueue(prev => prev.slice(1));
       setProcessingAI(false);
     }
@@ -1250,6 +1270,28 @@ const CameraAIApp: React.FC = () => {
             remainingTime={autoCapture.remainingTime}
             isActive={autoCapture.isActive}
           />
+        )}
+
+        {/* Voice Command Status */}
+        {appSettings.voiceCommandsEnabled && (
+          <div className="flex gap-2 items-center mb-2">
+            <button
+              onClick={voiceListening ? stopListening : startListening}
+              className={`p-2 rounded-full border ${voiceListening ? 'bg-green-200' : 'bg-gray-200'}`}
+              title={voiceListening ? 'Stop Listening' : 'Start Voice Command'}
+            >
+              <span role="img" aria-label="microphone">🎤</span>
+            </button>
+            <span className="text-xs text-muted-foreground">
+              {voiceListening ? 'Listening...' : 'Voice Commands'}
+              {lastVoiceCommand && (
+                <span className="ml-2">Heard: <b>{lastVoiceCommand}</b></span>
+              )}
+              {voiceError && (
+                <span className="ml-2 text-red-500">{voiceError}</span>
+              )}
+            </span>
+          </div>
         )}
 
         {/* Camera Controls */}

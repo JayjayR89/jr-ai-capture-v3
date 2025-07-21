@@ -1,12 +1,16 @@
 
-import React, { useState, useCallback, useEffect, memo } from 'react';
+import React, { useState, useCallback, useEffect, memo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { RotateCcw, Minimize2, Maximize2, Loader } from 'lucide-react';
+import { RotateCcw, Minimize2, Maximize2, Loader, Cog } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { AnimationWrapper, useAnimation, type AnimationType } from './AnimationWrapper';
 import { ErrorBoundary } from './ErrorBoundary';
 import { handleCameraError } from '@/lib/errorHandling';
 import { LoadingIndicator } from './LoadingIndicator';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
+import '@tensorflow/tfjs';
+import { useSettings } from '@/contexts/SettingsContext';
+import * as blazeface from '@tensorflow-models/blazeface';
 
 interface CameraPreviewProps {
   videoRef: React.RefObject<HTMLVideoElement>;
@@ -220,6 +224,160 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
     return `${baseClasses} ${opacityClass} ${objectFitClass}`;
   };
 
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const [model, setModel] = useState<any>(null);
+  const { settings, updateSettings } = useSettings();
+  const [faceModel, setFaceModel] = useState<any>(null);
+  const [modelLoading, setModelLoading] = useState(false);
+  const [legendOpen, setLegendOpen] = useState(true);
+  const [legendPos, setLegendPos] = useState({ x: 8, y: 8 });
+  const [dragging, setDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [objectCount, setObjectCount] = useState(0);
+  const [faceCount, setFaceCount] = useState(0);
+
+  // Responsive canvas sizing
+  const updateCanvasSize = useCallback(() => {
+    if (videoRef.current && overlayRef.current) {
+      overlayRef.current.width = videoRef.current.videoWidth;
+      overlayRef.current.height = videoRef.current.videoHeight;
+    }
+  }, [videoRef, overlayRef]);
+
+  useEffect(() => {
+    updateCanvasSize();
+    window.addEventListener('resize', updateCanvasSize);
+    videoRef.current?.addEventListener('loadedmetadata', updateCanvasSize);
+    return () => {
+      window.removeEventListener('resize', updateCanvasSize);
+      videoRef.current?.removeEventListener('loadedmetadata', updateCanvasSize);
+    };
+  }, [updateCanvasSize, videoRef]);
+
+  // Model loading feedback
+  useEffect(() => {
+    if (settings?.aiOverlayEnabled) {
+      setModelLoading(true);
+      cocoSsd.load().then(m => { setModel(m); setModelLoading(false); });
+    }
+  }, [settings?.aiOverlayEnabled]);
+  useEffect(() => {
+    if (settings?.faceOverlayEnabled) {
+      setModelLoading(true);
+      blazeface.load().then(m => { setFaceModel(m); setModelLoading(false); });
+    }
+  }, [settings?.faceOverlayEnabled]);
+
+  // Run detection loop for both object and face detection
+  useEffect(() => {
+    if ((!model && !faceModel) || !videoRef.current || (!settings?.aiOverlayEnabled && !settings?.faceOverlayEnabled)) return;
+    let running = true;
+    const detectLoop = async () => {
+      if (!running || !videoRef.current || !overlayRef.current) return;
+      const ctx = overlayRef.current.getContext('2d');
+      ctx?.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      let objCount = 0;
+      let fCount = 0;
+      // Object detection
+      if (settings?.aiOverlayEnabled && model) {
+        let predictions = await model.detect(videoRef.current);
+        predictions = predictions.filter(pred => pred.score >= (settings.detectionConfidence || 0.5));
+        objCount = predictions.length;
+        drawObjectPredictions(predictions, ctx);
+      }
+      // Face detection
+      if (settings?.faceOverlayEnabled && faceModel) {
+        let faces = await faceModel.estimateFaces(videoRef.current, false);
+        fCount = faces.length;
+        drawFacePredictions(faces, ctx);
+      }
+      setObjectCount(objCount);
+      setFaceCount(fCount);
+      setTimeout(detectLoop, settings?.detectionIntervalMs || 200);
+    };
+    detectLoop();
+    return () => { running = false; };
+  }, [model, faceModel, videoRef.current, settings?.aiOverlayEnabled, settings?.faceOverlayEnabled, settings?.detectionIntervalMs, settings?.detectionConfidence]);
+
+  // Overlay export
+  const exportOverlayImage = () => {
+    if (!overlayRef.current || !videoRef.current) return;
+    // Draw video frame onto a temp canvas, then draw overlay, then export
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = overlayRef.current.width;
+    tempCanvas.height = overlayRef.current.height;
+    const tempCtx = tempCanvas.getContext('2d');
+    tempCtx?.drawImage(videoRef.current, 0, 0, tempCanvas.width, tempCanvas.height);
+    tempCtx?.drawImage(overlayRef.current, 0, 0);
+    const url = tempCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'capture_with_overlay.png';
+    a.click();
+  };
+
+  // Draggable legend logic
+  const onLegendMouseDown = (e: React.MouseEvent) => {
+    setDragging(true);
+    setDragOffset({ x: e.clientX - legendPos.x, y: e.clientY - legendPos.y });
+  };
+  useEffect(() => {
+    if (!dragging) return;
+    const onMouseMove = (e: MouseEvent) => {
+      setLegendPos({ x: e.clientX - dragOffset.x, y: e.clientY - dragOffset.y });
+    };
+    const onMouseUp = () => setDragging(false);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [dragging, dragOffset]);
+
+  const drawObjectPredictions = (predictions: any[], ctx: CanvasRenderingContext2D | null) => {
+    if (!ctx) return;
+    predictions.forEach(pred => {
+      // Color by class
+      const color = pred.class === 'person' ? '#FF3B3B' : '#00FF00';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.setLineDash([6, 4]); // dashed box
+      ctx.strokeRect(...pred.bbox);
+      // Label background
+      ctx.font = 'bold 16px Arial';
+      const text = `${pred.class} (${Math.round(pred.score * 100)}%)`;
+      const textWidth = ctx.measureText(text).width;
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(pred.bbox[0], pred.bbox[1] - 24, textWidth + 8, 22);
+      // Label text
+      ctx.fillStyle = color;
+      ctx.fillText(text, pred.bbox[0] + 4, pred.bbox[1] - 8);
+      ctx.setLineDash([]); // reset
+    });
+  };
+
+  const drawFacePredictions = (faces: any[], ctx: CanvasRenderingContext2D | null) => {
+    if (!ctx) return;
+    faces.forEach(pred => {
+      const [x, y, w, h] = [
+        pred.topLeft[0], pred.topLeft[1],
+        pred.bottomRight[0] - pred.topLeft[0],
+        pred.bottomRight[1] - pred.topLeft[1]
+      ];
+      ctx.strokeStyle = '#FFD700';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([2, 2]);
+      ctx.strokeRect(x, y, w, h);
+      ctx.font = 'bold 14px Arial';
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x, y - 20, 48, 18);
+      ctx.fillStyle = '#FFD700';
+      ctx.fillText('Face', x + 4, y - 6);
+      ctx.setLineDash([]);
+    });
+  };
+
   return (
     <Card 
       className={`relative transition-all duration-300 ${
@@ -259,6 +417,45 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
           </div>
         )}
         
+        {modelLoading && (
+          <div className="absolute top-1/2 left-1/2 z-20 bg-black/70 text-white px-4 py-2 rounded shadow-lg" role="status" aria-live="polite">Loading AI model...</div>
+        )}
+        {(settings?.aiOverlayEnabled || settings?.faceOverlayEnabled) && legendOpen && (
+          <div
+            style={{ position: 'absolute', top: legendPos.y, left: legendPos.x, zIndex: 20, background: 'rgba(0,0,0,0.7)', borderRadius: 8, padding: '10px 14px', color: '#fff', fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 120, cursor: dragging ? 'grabbing' : 'grab' }}
+            tabIndex={0}
+            aria-label="Detection legend"
+            onMouseDown={onLegendMouseDown}
+            onKeyDown={e => { if (e.key === 'Escape') setLegendOpen(false); }}
+            role="region"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#FF3B3B', borderRadius: 2, marginRight: 4 }} aria-label="Person color" /> Person
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#00FF00', borderRadius: 2, marginRight: 4 }} aria-label="Object color" /> Object
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ display: 'inline-block', width: 16, height: 4, background: '#FFD700', borderRadius: 2, marginRight: 4 }} aria-label="Face color" /> Face
+            </div>
+            <div className="mt-2 text-xs" aria-live="polite">
+              <span>Objects: {objectCount}</span> | <span>Faces: {faceCount}</span>
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setLegendOpen(false)} aria-label="Hide legend" style={{ background: 'none', color: '#fff', border: 'none', cursor: 'pointer' }}>✕</button>
+              <button onClick={exportOverlayImage} aria-label="Export overlayed image" style={{ background: 'none', color: '#fff', border: 'none', cursor: 'pointer' }}>📷</button>
+              <button onClick={() => updateSettings({ showOverlaySettings: true })} aria-label="Overlay settings" style={{ background: 'none', color: '#fff', border: 'none', cursor: 'pointer' }}><Cog size={16} /></button>
+            </div>
+          </div>
+        )}
+        {(settings?.aiOverlayEnabled || settings?.faceOverlayEnabled) && !legendOpen && (
+          <button
+            onClick={() => setLegendOpen(true)}
+            aria-label="Show legend"
+            style={{ position: 'absolute', top: legendPos.y, left: legendPos.x, zIndex: 21, background: 'rgba(0,0,0,0.7)', color: '#fff', borderRadius: 8, padding: '2px 10px', border: 'none', cursor: 'pointer' }}
+          >Legend</button>
+        )}
+
         <AnimationWrapper
           isAnimating={animation.isAnimating}
           animationType={animationType}
@@ -279,6 +476,9 @@ const CameraPreviewInner: React.FC<CameraPreviewProps> = memo(({
             onClick={handleVideoTap}
             onTouchEnd={handleVideoTap}
           />
+          {settings?.aiOverlayEnabled && (
+            <canvas ref={overlayRef} className='absolute top-0 left-0 pointer-events-none' width={videoRef.current?.videoWidth} height={videoRef.current?.videoHeight} />
+          )}
         </AnimationWrapper>
         
         {/* Top Left - Minimize/Maximize Button */}
